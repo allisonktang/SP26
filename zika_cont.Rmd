@@ -1,0 +1,200 @@
+---
+title: "Continuous Data"
+author: "Allison"
+date: "2026-03-25"
+output: html_document
+---
+
+```{r}
+rm(list = ls())
+
+library(readr)
+library(dplyr)
+
+
+zika <- read_csv("zika_incidence_2016_2024.csv")
+glimpse(zika)
+wavelet <- zika %>%
+  group_by(muni) %>%
+  arrange(date, .by_group = TRUE)
+wavelet
+
+```
+
+```{r}
+library(dplyr)
+library(lubridate)
+
+# Standardize dates and extract intervals
+wavelet_intervals <- wavelet %>%
+  mutate(
+    date = parse_date_time(date,
+    orders = c("mdy","dmy","ymd")),
+    Year = year(date),
+    Month = month(date),
+    Quarter = quarter(date),
+    Half = ifelse(Month <= 6, 1, 2)
+  ) %>%
+  filter(between(Year, 2016, 2024)) %>%
+  distinct(muni, Year, Month, Quarter, Half)
+wavelet_intervals <- wavelet_intervals %>%
+  mutate(
+    Month_ID = (Year - 2016) * 12 + Month, # 1-month
+    Quarter_ID = (Year - 2016) * 4 + Quarter, # 3-month
+    Half_ID = (Year - 2016) * 2 + Half, # 6-month
+    Year_ID = (Year - 2016) + 1 # 1-year
+)
+n_months = length(2016:2024) * 12 # 156 months
+n_quarters = length(2016:2024) * 4 # 52 quarters
+n_halves = length(2016:2024) * 2 # 26 half-years
+n_years = length(2016:2024)
+full_coverage <- wavelet_intervals %>%
+  group_by(muni) %>%
+  summarise(
+    Full_1Month_Coverage = n_distinct(Month_ID) == n_months,
+    Full_Quarter_Coverage = n_distinct(Quarter_ID) == n_quarters,
+    Full_Half_Coverage = n_distinct(Half_ID) == n_halves,
+    Full_Year_Coverage = n_distinct(Year_ID) == n_years,
+    .groups = "drop"
+  )
+full_coverage <- full_coverage %>%
+  mutate(
+    Status_1Month = ifelse(Full_1Month_Coverage, "Full", "Missing"),
+    Status_Quarter = ifelse(Full_Quarter_Coverage, "Full", "Missing"),
+    Status_Half = ifelse(Full_Half_Coverage, "Full", "Missing"),
+    Status_Year = ifelse(Full_Year_Coverage, "Full", "Missing")
+  )
+glimpse(full_coverage)
+full_coverage
+```
+
+```{r}
+coverage_summary <- full_coverage %>%
+ summarise(
+  Month_Full = sum(Status_1Month == "Full"),
+  Month_Missing = sum(Status_1Month == "Missing"),
+  Quarter_Full = sum(Status_Quarter == "Full"),
+  Quarter_Missing = sum(Status_Quarter == "Missing"),
+  Half_Full   = sum(Status_Half == "Full"),
+  Half_Missing = sum(Status_Half == "Missing"),
+  Year_Full = sum(Status_Year == "Full"),
+  Year_Missing = sum(Status_Year == "Missing")
+ )
+
+# Or, for a cleaner "long" format table:
+library(tidyr)
+
+tidy_summary <- full_coverage %>%
+ pivot_longer(cols = starts_with("Status"),
+ names_to = "Interval_Type",
+ values_to = "Status") %>%
+ count(Interval_Type, Status)
+
+print(tidy_summary)
+
+```
+
+
+```{r}
+wavelet1 <- zika %>%
+ group_by(state) %>%
+ arrange(date, .by_group = TRUE)
+```
+
+```{r}
+wavelet_intervals1 <- wavelet1 %>%
+  mutate(
+    date = parse_date_time(date, orders = c("mdy","dmy","ymd")),
+    Year = year(date),
+    Month = month(date),
+    Quarter = quarter(date),
+    Half = ifelse(Month <= 6, 1, 2)
+  ) %>%
+  filter(between(Year, 2016, 2024)) %>%
+  distinct(state, Year, Month, Quarter, Half) %>%
+  mutate(
+    Month_ID   = (Year - 2016) * 12 + Month,
+    Quarter_ID = (Year - 2016) * 4 + Quarter,
+    Half_ID    = (Year - 2016) * 2 + Half,
+    Year_ID    = (Year - 2016) + 1   
+  )
+
+n_months   = length(2016:2024) * 12
+n_quarters = length(2016:2024) * 4
+n_halves   = length(2016:2024) * 2
+n_years    = length(2016:2024) 
+
+full_coverage1 <- wavelet_intervals1 %>%
+  group_by(state) %>%
+  summarise(
+    Full_1Month_Coverage   = n_distinct(Month_ID)   == n_months,
+    Full_Quarter_Coverage  = n_distinct(Quarter_ID) == n_quarters,
+    Full_Half_Coverage     = n_distinct(Half_ID)    == n_halves,
+    Full_Year_Coverage     = n_distinct(Year_ID)    == n_years,  
+    .groups = "drop"
+  ) %>%
+  mutate(
+    Status_1Month  = ifelse(Full_1Month_Coverage, "Full", "Missing"),
+    Status_Quarter = ifelse(Full_Quarter_Coverage, "Full", "Missing"),
+    Status_Half    = ifelse(Full_Half_Coverage, "Full", "Missing"),
+    Status_Year    = ifelse(Full_Year_Coverage, "Full", "Missing")  
+  )
+
+coverage_summary1 <- full_coverage1 %>%
+  summarise(
+    Month_Full      = sum(Status_1Month == "Full"),
+    Month_Missing   = sum(Status_1Month == "Missing"),
+    Quarter_Full    = sum(Status_Quarter == "Full"),
+    Quarter_Missing = sum(Status_Quarter == "Missing"),
+    Half_Full       = sum(Status_Half == "Full"),
+    Half_Missing    = sum(Status_Half == "Missing"),
+    Year_Full       = sum(Status_Year == "Full"),    
+    Year_Missing    = sum(Status_Year == "Missing")
+  )
+
+
+
+coverage_summary1
+print(coverage_summary1)
+
+tidy_summary1 <- full_coverage1 %>%
+  pivot_longer(
+    cols = starts_with("Status"),
+    names_to = "Interval_Type",
+    values_to = "Status"
+  ) %>%
+  count(Interval_Type, Status, name = "n") %>%
+  arrange(Interval_Type, Status)
+
+print(tidy_summary1)
+
+```
+```{r}
+cat("FULL 1-Month Coverage:\n")
+print(full_coverage$muni[full_coverage$Full_1Month_Coverage])
+
+cat("\nFULL Quarter Coverage:\n")
+print(full_coverage$muni[full_coverage$Full_Quarter_Coverage])
+
+cat("\nFULL Half-Year Coverage:\n")
+print(full_coverage$muni[full_coverage$Full_Half_Coverage])
+
+cat("\nFULL Year Coverage:\n")
+print(full_coverage$muni[full_coverage$Full_Year_Coverage])
+```
+
+``` {r}
+
+cat("FULL 1-Month Coverage:\n")
+print(full_coverage1$state[full_coverage1$Full_1Month_Coverage])
+
+cat("\nFULL Quarter Coverage:\n")
+print(full_coverage1$state[full_coverage1$Full_Quarter_Coverage])
+
+cat("\nFULL Half-Year Coverage:\n")
+print(full_coverage1$state[full_coverage1$Full_Half_Coverage])
+
+cat("\nFULL Year Coverage:\n")
+print(full_coverage1$state[full_coverage1$Full_Year_Coverage])
+
+```

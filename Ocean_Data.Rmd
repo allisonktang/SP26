@@ -1,0 +1,107 @@
+---
+title: "Ocean"
+author: "Winson"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+ocean <- readRDS("C:/Users/Winson/Downloads/ocean_climate_oscillations_data_2016_2024.rds")
+head(ocean)
+library(dplyr)
+library(lubridate)
+```
+
+
+```{r}
+monthly_indices <- ocean %>%
+  mutate(month_date = floor_date(date, "month")) %>%
+  group_by(month_date) %>%
+  summarise(
+    avg_enso = mean(enso, na.rm = TRUE),
+    avg_iod  = mean(iod, na.rm = TRUE),
+    avg_pdo  = mean(pdo, na.rm = TRUE)
+  ) %>%
+  arrange(month_date) %>%
+  
+  # shift so each month uses previous month's values
+  mutate(
+    avg_enso = lag(avg_enso),
+    avg_iod  = lag(avg_iod),
+    avg_pdo  = lag(avg_pdo),
+    
+    month_year = format(month_date, "%b-%Y")
+  ) %>%
+  
+  # drop first row (Nov 2015 becomes NA after shift)
+  filter(!is.na(avg_enso)) %>%
+  
+  select(month_year, everything(), -month_date)
+monthly_indices
+```
+```{r}
+monthly_indices <- ocean %>%
+  mutate(month_date = floor_date(date, "month")) %>%
+  group_by(month_date) %>%
+  summarise(
+    avg_enso = mean(enso, na.rm = TRUE),
+    avg_iod  = mean(iod, na.rm = TRUE),
+    avg_pdo  = mean(pdo, na.rm = TRUE)
+  ) %>%
+  arrange(month_date) %>%
+  
+  # create month labels BEFORE lagging
+  mutate(
+    target_month_year = format(month_date, "%b-%Y"),
+    lagged_month_year = lag(target_month_year)
+  ) %>%
+  
+  # now lag the variables
+  mutate(
+    avg_enso = lag(avg_enso),
+    avg_iod  = lag(avg_iod),
+    avg_pdo  = lag(avg_pdo)
+  ) %>%
+  
+  # remove NA row from lag
+  filter(!is.na(avg_enso)) %>%
+  
+  # reorder columns so lagged month is 2nd
+  select(target_month_year, lagged_month_year, everything(), -month_date)
+
+monthly_indices
+
+```
+
+
+#plot data
+```{r}
+library(ggplot2)
+
+
+ggplot(mergedLong_muni,
+       aes(x = year_month, y = factor(muni), fill = incidence)) +
+  geom_tile(color = NA, linewidth = 0) +
+  facet_wrap(~ disease, ncol = 1) +
+  scale_fill_gradient2(
+    low = muted("blue"),
+    mid = "white",
+    high = "#D4180A"
+  ) + 
+  scale_x_date(date_labels = "%Y-%m", date_breaks = "6 months") +
+  labs(x = "Time", y = "Municipality", fill = "Incidence") +
+  theme_classic() +
+  theme(
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.3),
+    strip.background = element_blank(),
+    strip.text = element_text(face = "plain"),
+    axis.text.x = element_text(angle = 90, hjust = 1)
+  )
+
+```

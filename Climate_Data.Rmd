@@ -1,0 +1,158 @@
+---
+title: "Climate"
+author: "Winson"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+climate <- readRDS("data/combined_all_climate_data_2016_2024(7).rds")
+head(climate)
+```
+
+```{r}
+library(dplyr)
+library(lubridate)
+
+monthly_data <- climate %>%
+  mutate(month_date = floor_date(date, "month")) %>%
+  group_by(month_date) %>%
+  summarise(
+    avg_temp_min = mean(temp_min, na.rm = TRUE),
+    avg_temp_max = mean(temp_max, na.rm = TRUE),
+    avg_temp_med = mean(temp_med, na.rm = TRUE),
+    
+    avg_precip_min = mean(precip_min, na.rm = TRUE),
+    avg_precip_max = mean(precip_max, na.rm = TRUE),
+    avg_precip_med = mean(precip_med, na.rm = TRUE),
+    avg_precip_total = sum(precip_tot, na.rm = TRUE),
+    
+    avg_pressao_min = mean(pressao_min, na.rm = TRUE),
+    avg_pressao_max = mean(pressao_max, na.rm = TRUE),
+    avg_pressao_med = mean(pressao_med, na.rm = TRUE),
+    
+    avg_umid_min = mean(umid_min, na.rm = TRUE),
+    avg_umid_max = mean(umid_max, na.rm = TRUE),
+    avg_umid_med = mean(umid_med, na.rm = TRUE)
+  ) %>% 
+  arrange(month_date) %>%
+  mutate(
+    month_year = format(month_date, "%b-%Y"),
+    avr_temp_mean = (avg_temp_min + avg_temp_max) / 2,
+    avr_precip_mean = (avg_precip_min + avg_precip_max) / 2,
+    avr_pressao_mean = (avg_pressao_min + avg_pressao_max) / 2,
+    avr_umid_mean = (avg_umid_min + avg_umid_max) / 2
+  ) %>%
+  select(month_year, everything(), -month_date) 
+
+monthly_data
+```
+
+```{r}
+monthly_data_shifted <- climate %>%
+  mutate(month_date = floor_date(date, "month")) %>%
+  
+  # group by geocodigo AND month
+  group_by(geocodigo, month_date) %>%
+  summarise(
+    avg_temp_min = mean(temp_min, na.rm = TRUE),
+    avg_temp_max = mean(temp_max, na.rm = TRUE),
+    avg_temp_med = mean(temp_med, na.rm = TRUE),
+    
+    avg_precip_min = mean(precip_min, na.rm = TRUE),
+    avg_precip_max = mean(precip_max, na.rm = TRUE),
+    avg_precip_med = mean(precip_med, na.rm = TRUE),
+    avg_precip_total = sum(precip_tot, na.rm = TRUE),
+    
+    avg_pressao_min = mean(pressao_min, na.rm = TRUE),
+    avg_pressao_max = mean(pressao_max, na.rm = TRUE),
+    avg_pressao_med = mean(pressao_med, na.rm = TRUE),
+    
+    avg_umid_min = mean(umid_min, na.rm = TRUE),
+    avg_umid_max = mean(umid_max, na.rm = TRUE),
+    avg_umid_med = mean(umid_med, na.rm = TRUE),
+    
+    .groups = "drop"
+  ) %>%
+  
+  arrange(geocodigo, month_date) %>%
+  
+  # create month labels BEFORE lagging
+  mutate(
+    target_month_year = format(month_date, "%b-%Y"),
+    lagged_month_year = lag(target_month_year)
+  ) %>%
+  
+  # lag WITHIN each geocodigo
+  group_by(geocodigo) %>%
+  mutate(
+    avg_temp_min = lag(avg_temp_min),
+    avg_temp_max = lag(avg_temp_max),
+    avg_temp_med = lag(avg_temp_med),
+    
+    avg_precip_min = lag(avg_precip_min),
+    avg_precip_max = lag(avg_precip_max),
+    avg_precip_med = lag(avg_precip_med),
+    avg_precip_total = lag(avg_precip_total),
+    
+    avg_pressao_min = lag(avg_pressao_min),
+    avg_pressao_max = lag(avg_pressao_max),
+    avg_pressao_med = lag(avg_pressao_med),
+    
+    avg_umid_min = lag(avg_umid_min),
+    avg_umid_max = lag(avg_umid_max),
+    avg_umid_med = lag(avg_umid_med),
+    
+    # recompute AFTER lag
+    avr_temp_mean = (avg_temp_min + avg_temp_max) / 2,
+    avr_precip_mean = (avg_precip_min + avg_precip_max) / 2,
+    avr_pressao_mean = (avg_pressao_min + avg_pressao_max) / 2,
+    avr_umid_mean = (avg_umid_min + avg_umid_max) / 2
+  ) %>%
+  ungroup() %>%
+  
+  # remove rows where lag doesn't exist (first month per geocodigo)
+  filter(!is.na(avg_temp_min)) %>%
+  
+  # reorder columns
+  select(geocodigo, target_month_year, lagged_month_year, everything(), -month_date)
+
+monthly_data_shifted
+```
+
+```{r}
+library(ggplot2)
+
+climate_plot <- monthly_data_shifted %>%
+  mutate(
+    date = as.Date(paste0("01-", target_month_year), format = "%d-%b-%Y")
+  ) %>%
+  arrange(geocodigo, date)
+
+climate_plot <- climate_plot %>%
+  mutate(temp_z = scale(avr_temp_mean)[,1])
+
+ggplot(climate_plot,
+       aes(x = date, y = factor(geocodigo), fill = temp_z)) +
+  geom_tile() +
+  scale_fill_gradient2(
+    low = "#3865ab",
+    mid = "white",
+    high = "#b82811",
+    midpoint = 0, 
+    limits = c(-4, 4)
+  ) +
+  scale_x_date(date_labels = "%Y-%m", date_breaks = "3 months") +
+  labs(x = "Time", y = "Municipality", fill = "Intensity") +
+  theme_classic() +
+  theme(
+    axis.text.y = element_blank(),
+    axis.ticks = element_blank(),
+    panel.grid = element_blank(),
+    axis.text.x = element_text(angle = 90, hjust = 1)
+  )
+```

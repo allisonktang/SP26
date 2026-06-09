@@ -1,0 +1,933 @@
+---
+title: "Winson code (YFV allison ver.)"
+author: "Winson (allison edit)"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#Loading packages 
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(lubridate)
+library(Polychrome)
+library(sf)
+library(here)
+library(zoo)
+library(tidytext)
+library(scales)
+library(geobr)
+library(RColorBrewer)
+library(foreign)
+
+setwd("/Users/allison/Desktop/Research_BentoLab/SP26")
+```
+
+This script produces the following outputs:
+1. Number of Infections
+~~  - by Age and State ~~ (no age data)
+~~  - by Age and Sex ~~
+~~  - by Sex ~~
+~~  - by Ethnicity and Sex~~
+~~  - by Zone and Sex ~~
+2. Annual Incidence
+  - by Year and State
+  - by Municipality and State
+3. Time Series Incidence
+  - Monthly Incidence per State
+    - Log Scale
+    - 3 month MA Log Scale
+    - 6 month MA Log Scale
+    - 3 month MA with 95% CI Log Scale
+    - 6 month MA with 95% CI Log Scale
+4. Incidence by Age
+  - Age and Sex
+  - Age grouped by State
+5. Spatial Representations
+  - Municipality Level
+  - State Level
+
+
+```{r}
+#Loads the YFV Dataset
+YFV <- read.csv("data/municipality_incidence_yellow_fever_William_dataset.csv")
+
+#Loads the Dataset with Brazil's size per age, year, state and municipality
+population_size_2010_2024 <- read.csv("data/population_size_2010_2024.csv")
+
+```
+
+
+```{r calculate incidence for state, echo=FALSE}
+
+# 1: Group cases by state and year
+YFV_state <- YFV %>%
+  group_by(state, year) %>%
+  summarise(cases = sum(total_cases, na.rm = T),
+            population = sum(total_population, na.rm = T),
+            incidence_100k = (cases / population) * 100000,
+            .groups = "drop")
+
+# Remove zero-incidence rows (for log scale)
+YFV_state_cleaned <- YFV_state %>%
+  filter(incidence_100k > 0)
+
+# Step 3. Create a lookup table for IBGE codes -> state abbreviations
+state_lookup <- c(
+  "11" = "RO", "12" = "AC", "13" = "AM", "14" = "RR", "15" = "PA",
+  "16" = "AP", "17" = "TO", "21" = "MA", "22" = "PI", "23" = "CE",
+  "24" = "RN", "25" = "PB", "26" = "PE", "27" = "AL", "28" = "SE",
+  "29" = "BA", "31" = "MG", "32" = "ES", "33" = "RJ", "35" = "SP",
+  "41" = "PR", "42" = "SC", "43" = "RS", "50" = "MS", "51" = "MT",
+  "52" = "GO", "53" = "DF"
+)
+
+# Step 4. Prepare population dataset
+# - Ensure municipality codes are 6-digit strings
+# - Extract first 2 digits as state code
+# - Map to state abbreviation
+population_size_2010_2024 <- population_size_2010_2024 %>%
+  mutate(
+    municipality_code_age = sprintf("%06d", as.integer(municipality_code_age)),
+    state_code = substr(municipality_code_age, 1, 2),
+    state = state_lookup[state_code]
+  )
+
+# Step 5. Aggregate population to state-year level
+population_state <- population_size_2010_2024 %>%
+  group_by(state, year) %>%
+  summarise(Total_pop = sum(Total, na.rm = TRUE), .groups = "drop")
+
+# Step 6. Join case counts with population and calculate incidence per 100,000
+incidence_per_state <- cases_state %>%
+  left_join(population_state, by = c("year","state")) %>%
+  mutate(incidence_per_state_100k = (cases / Total_pop) * 100000)
+
+# Step 7. Remove rows with missing incidence (NAs from unmatched state-year combinations)
+incidence_per_state_clean <- incidence_per_state %>%
+  filter(!is.na(incidence_per_state_100k))
+
+# Step 8. Plot heatmap
+heatmap_plot_1 <- ggplot(
+  incidence_per_state_clean,
+  aes(
+    x = factor(year),
+    y = reorder(state, incidence_per_state_100k, FUN = max),
+    fill = incidence_per_state_100k
+  )
+) +
+  geom_tile(color = "#FCF0CE") +
+  scale_fill_gradient(
+    low = "#FCF0CE",
+    high = "#D4180A",
+    trans = "log",  
+    breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))
+  ) +
+  labs(
+    title = "",
+    x = "Year",
+    y = "State",
+    fill = "Chikv\nincidence\n"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid = element_blank()
+  )
+print(heatmap_plot_1)
+
+ggsave(
+  here::here("figures", "incidence_per_state.png"),
+  plot = heatmap_plot_1,
+  width = 10,
+  height = 6,
+  dpi = 300
+)
+```
+
+```{r calculate incidence for municipalities, echo=FALSE}
+# Prepare dataset with year and month extracted from collection_date
+chik4 <- chik3 %>%
+  mutate(municipality_code = sprintf("%06d", as.integer(Municipality_Code)) # standardize code
+  )
+# Summarize the number of cases by year and municipality
+cases_per_muni <- chik4 %>%
+  group_by(year, municipality_code) %>%
+  summarise(cases = n(), .groups = "drop")
+# Select total population by year and municipality
+pop_per_muni <- population_size_2010_2024 %>%
+  select(year, municipality_code_age, Total) %>%
+  rename(municipality_code = municipality_code_age,
+         population = Total)
+# Join the two datasets
+incidence_data_per_municipalities <- cases_per_muni %>%
+  inner_join(pop_per_muni, by = c("year", "municipality_code"))
+
+# Calculate incidence per 100,000 inhabitants
+incidence_per_municipalities <- incidence_data_per_municipalities %>%
+  mutate(incidence_per_municipalities_100k = (cases / population) * 100000)
+
+# Preview the first results
+head(incidence_per_municipalities)
+# Remove rows with missing incidence (NAs from unmatched municipality-year combinations)
+incidence_per_municipalities_clean <- incidence_per_municipalities %>%
+  filter(!is.na(incidence_per_municipalities_100k))
+
+incidence_per_muni <- incidence_per_municipalities_clean %>%
+  mutate(state_code = substr(municipality_code, 1, 2))
+
+#Create lookup table for state abbreviations
+state_lookup <- c(
+  "11" = "RO", "12" = "AC", "13" = "AM", "14" = "RR", "15" = "PA",
+  "16" = "AP", "17" = "TO", "21" = "MA", "22" = "PI", "23" = "CE",
+  "24" = "RN", "25" = "PB", "26" = "PE", "27" = "AL", "28" = "SE",
+  "29" = "BA", "31" = "MG", "32" = "ES", "33" = "RJ", "35" = "SP",
+  "41" = "PR", "42" = "SC", "43" = "RS", "50" = "MS", "51" = "MT",
+  "52" = "GO", "53" = "DF"
+)
+
+#Replace state codes with abbreviations
+incidence_per_muni <- incidence_per_muni %>%
+  mutate(state = state_lookup[state_code])
+
+# Create an order of states based on their maximum incidence
+state_order <- incidence_per_state_clean %>%
+  group_by(state) %>%
+  summarise(max_incidence = max(incidence_per_state_100k, na.rm = TRUE)) %>%
+  arrange(desc(max_incidence)) %>%
+  pull(state)
+
+# Define the custom order for states
+state_order <- c("RJ", "ES", "MG", "SP", "PA", "PR",
+                 "AP", "RR", "SC", "PI", "RS", "AM", 
+                 "MS", "DF", "GO", "TO", "MT", "AL", 
+                 "RO", "BA", "PE")
+
+# Apply this order to the state variable
+incidence_per_muni <- incidence_per_muni %>%
+  mutate(state = factor(state, levels = state_order))
+
+# Plot heatmap with custom facet order
+heatmap_plot_2<-ggplot(incidence_per_muni,
+       aes(x = factor(year),
+           y = reorder_within(municipality_code, 
+                              incidence_per_municipalities_100k, 
+                              state),           
+           fill = incidence_per_municipalities_100k)) +
+  geom_tile(color = "#fcf0ce") +
+  scale_fill_gradient(low = "#fcf0ce", high = "#d4180a") +
+  facet_wrap(~ state, scales = "free_y") +
+  scale_fill_gradient(
+    low = "#FCF0CE",
+    high = "#D4180A",
+    trans = "log",  
+    breaks = scales::trans_breaks("log10", function(x) 10^x),
+    labels = scales::trans_format("log10", scales::math_format(10^.x))
+  ) +
+  labs(
+    title = " ",
+    x = "Year",
+    y = "Municipality", 
+    fill = "ChikV incidence per municipality (2010–2024) (per 100k)"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    panel.grid = element_blank(),
+    strip.text = element_text(face = "bold"),
+    legend.position = "bottom"
+  )
+
+print(heatmap_plot_2)
+
+ggsave(
+  here::here("figures", "incidence_heatmap_municipality.png"),
+  plot = heatmap_plot_2,
+  width = 8,
+  height = 10,
+  dpi = 300
+)
+```
+
+```{r}
+chik6 <- chik %>%
+  mutate(
+    year = lubridate::year(Collection_Date),
+    month = lubridate::month(Collection_Date)
+  )
+
+# --- Step 2: Count ChikV cases per state-year-month ---
+cases_state <- chik6 %>%
+  group_by(state, year, month) %>%
+  summarise(cases = n(), .groups = "drop")
+
+# --- Step 3: Aggregate population to state-year-month level ---
+population_state <- population_size_2010_2024 %>%
+  mutate(
+    municipality_code_age = sprintf("%06d", as.integer(municipality_code_age)),
+    state_code = substr(municipality_code_age, 1, 2),
+    state = state_lookup[state_code]
+  ) %>%
+  group_by(state, year) %>%
+  summarise(Total_pop = sum(Total, na.rm = TRUE), .groups = "drop") %>%
+  tidyr::crossing(month = 1:12)
+
+# --- Step 4: Join case counts with population and compute incidence ---
+incidence_per_state_order <- cases_state %>%
+  left_join(population_state, by = c("year", "state", "month")) %>%
+  mutate(
+    incidence_per_state_100k = (cases / Total_pop) * 100000 + 0.001,  # add small offset to avoid log(0)
+    year_month = lubridate::ymd(paste(year, month, "01", sep = "-"))
+  ) %>%
+  arrange(state, year_month) %>%
+  filter(!is.na(incidence_per_state_100k))
+
+# --- Step 5: Base time series plot (log scale) ---
+move_plot <- ggplot(incidence_per_state_order, aes(x = year_month, y = incidence_per_state_100k)) +
+  geom_line(color = "grey60", alpha = 0.6) +
+  geom_smooth(method = "loess", span = 0.2, se = TRUE, aes(color = state, fill = state)) +
+  facet_wrap(~state, scales = "free_y") +
+  scale_y_log10(
+    labels = comma_format(accuracy = 1),
+    breaks = log_breaks(n = 6)
+  ) +
+  labs(
+    title = "Monthly ChikV Incidence per State (Log Scale)",
+    x = "Year",
+    y = "Log^10(Incidence per 100,000)"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    strip.text = element_text(size = 10, face = "bold")
+  )
+print(move_plot)
+
+# --- Step 6: 3-month moving average ---
+incidence_ma_3m <- incidence_per_state_order %>%
+  group_by(state) %>%
+  arrange(year_month) %>%
+  mutate(
+    incidence_ma_3m = zoo::rollmean(incidence_per_state_100k, k = 3, fill = NA, align = "right")
+  ) %>%
+  ungroup() %>%
+  filter(!is.na(incidence_ma_3m))
+
+ma_ci_plot_3m <- ggplot(incidence_ma_3m, aes(x = year_month, y = incidence_ma_3m)) +
+  geom_line(color = "grey50", alpha = 0.7) +
+  geom_smooth(method = "loess", span = 0.2, se = TRUE, aes(color = state, fill = state)) +
+  facet_wrap(~state, scales = "free_y") +
+  scale_y_log10(
+    labels = comma_format(accuracy = 1),
+    breaks = log_breaks(n = 6)
+  ) +
+  labs(
+    title = "Monthly ChikV Incidence per State (3-Month Moving Average, Log Scale)",
+    x = "Year",
+    y = "Log^10(Incidence per 100,000, 3M MA)"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    strip.text = element_text(size = 10, face = "bold")
+  )
+print(ma_ci_plot_3m)
+
+# --- Step 7: 6-month moving average ---
+incidence_ma_6m <- incidence_per_state_order %>%
+  group_by(state) %>%
+  arrange(year_month) %>%
+  mutate(
+    incidence_ma_6m = zoo::rollmean(incidence_per_state_100k, k = 6, fill = NA, align = "right")
+  ) %>%
+  ungroup() %>%
+  filter(!is.na(incidence_ma_6m))
+
+ma_ci_plot_6m <- ggplot(incidence_ma_6m, aes(x = year_month, y = incidence_ma_6m)) +
+  geom_line(color = "grey50", alpha = 0.7) +
+  geom_smooth(method = "loess", span = 0.2, se = TRUE, aes(color = state, fill = state)) +
+  facet_wrap(~state, scales = "free_y") +
+  scale_y_log10(
+    labels = comma_format(accuracy = 1),
+    breaks = log_breaks(n = 6)
+  ) +
+  labs(
+    title = "Monthly ChikV Incidence per State (6-Month Moving Average, Log Scale)",
+    x = "Year",
+    y = "Log₁₀(Incidence per 100,000, 6M MA)"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    strip.text = element_text(size = 10, face = "bold")
+  )
+print(ma_ci_plot_6m)
+```
+
+```{r}
+chik7 <- chik %>%
+  mutate(
+    year = year(Collection_Date),
+    month = month(Collection_Date),
+    municipality_code = sprintf("%06d", as.integer(Municipality_Code))
+  )
+
+cases_per_muni <- chik7 %>%
+  group_by(municipality_code, year, month) %>%
+  summarise(cases = n(), .groups = "drop")
+
+pop_per_muni <- population_size_2010_2024 %>%
+  select(year, municipality_code_age, Total) %>%
+  rename(municipality_code = municipality_code_age,
+         population = Total) %>%
+  crossing(month = 1:12)
+
+incidence_per_muni_monthly <- cases_per_muni %>%
+  inner_join(pop_per_muni, by = c("year", "municipality_code", "month")) %>%
+  mutate(
+    incidence_per_muni_100k = (cases / population) * 100000,
+    incidence_per_muni_100k = incidence_per_muni_100k + 0.001,  # avoid log(0)
+    year_month = ymd(paste(year, month, "01", sep = "-")),
+    state_code = substr(municipality_code, 1, 2),
+    state = state_lookup[state_code]
+  ) %>%
+  filter(!is.na(incidence_per_muni_100k))
+plot_ma_municipality <- function(df, k, ma_label) {
+  
+  ma_df <- df %>%
+    arrange(municipality_code, year_month) %>%
+    group_by(municipality_code) %>%
+    mutate(ma = zoo::rollmean(incidence_per_muni_100k, k = k, fill = NA, align = "right")) %>%
+    ungroup() %>%
+    filter(!is.na(ma)) %>%
+    group_by(municipality_code) %>%
+    filter(n() >= 12) %>% 
+    ungroup()
+  
+  ggplot(ma_df, aes(x = year_month, y = ma, group = municipality_code)) +
+    geom_line(color = "grey60", alpha = 0.5) +
+    geom_smooth(method = "loess", span = 0.5, se = TRUE, aes(color = state, fill = state)) +
+    facet_wrap(~state, scales = "free_y") +
+    scale_y_log10(                                     # ← log scale here
+      labels = scales::comma_format(accuracy = 1),
+      breaks = scales::log_breaks(n = 5)
+    ) +
+    labs(
+      title = paste("Monthly ChikV Incidence per Municipality (", ma_label, "-Month MA with 95% CI, Log Scale)", sep = ""),
+      x = "Year",
+      y = paste("Log₁₀(Incidence per 100,000, ", ma_label, "M MA)", sep = "")
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "none",
+      axis.text.x = element_text(angle = 45, hjust = 1),
+      strip.text = element_text(size = 10, face = "bold")
+    )
+}
+
+# Plot 3-month MA (log scale)
+ma_ci_plot_3m_muni <- plot_ma_municipality(incidence_per_muni_monthly, k = 3, ma_label = "3")
+print(ma_ci_plot_3m_muni)
+
+# Plot 6-month MA (log scale)
+ma_ci_plot_6m_muni <- plot_ma_municipality(incidence_per_muni_monthly, k = 6, ma_label = "6")
+print(ma_ci_plot_6m_muni)
+```
+
+```{r}
+chik_sex_age <- chik %>%
+  mutate(
+    age_group = cut(
+      age_years,
+      breaks = seq(0, 100, by = 10),
+      labels = paste(seq(0, 95, by = 10), seq(4, 99, by = 10), sep = "-"),
+      include.lowest = TRUE, right = TRUE
+    )
+  ) %>%
+  filter(!is.na(Sex_Code), !is.na(age_group)) %>%
+  group_by(age_group, Sex_Code) %>%
+  summarise(cases = n(), .groups = "drop")
+
+
+total_pop <- population_size_2010_2024 %>%
+  summarise(population = sum(Total, na.rm = TRUE)) %>%
+  pull(population)
+
+incidence_sex_age <- chik_sex_age %>%
+  mutate(
+    population = total_pop,  # same for all groups
+    incidence_per_100k = (cases / population) * 100000,
+    se = sqrt(cases) / population * 100000,
+    ci_lower = pmax(0, incidence_per_100k - 1.96 * se),
+    ci_upper = incidence_per_100k + 1.96 * se
+  )
+
+# Step 4: Plot
+ggplot(incidence_sex_age, aes(x = age_group, y = incidence_per_100k, fill = Sex_Code)) +
+  geom_col(position = position_dodge(width = 0.9), width = 0.8) +
+  geom_errorbar(
+    aes(ymin = ci_lower, ymax = ci_upper),
+    position = position_dodge(width = 0.9),
+    width = 0.3
+  ) +
+  scale_fill_manual(
+    values = c("F" = "#e41a1c", "M" = "#377eb8"),
+    name = "Sex",
+    labels = c("Female", "Male")
+  ) +
+  labs(
+    title = "Incidence for Chikungunya Cases Grouped by Age per 100,000",
+    x = "Age Group (Years)",
+    y = "Approximate Incidence per 100,000"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    legend.position = "top",
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+
+```
+
+```{r}
+chik_sex_age_state <- chik %>%
+  mutate(
+    state_code = substr(Municipality_Code, 1, 2),  # extract state code
+    age_group = cut(
+      age_years,
+      breaks = seq(0, 100, by = 10),
+      labels = paste(seq(0, 95, by = 10), seq(4, 99, by = 10), sep = "-"),
+      include.lowest = TRUE, right = TRUE
+    )
+  ) %>%
+  filter(!is.na(Sex_Code), !is.na(age_group), !is.na(state_code)) %>%
+  group_by(state_code, age_group, Sex_Code) %>%
+  summarise(cases = n(), .groups = "drop")
+
+# Step 2: Aggregate total population by state (no age breakdown)
+population_state <- population_size_2010_2024 %>%
+  mutate(state_code = substr(municipality_code_age, 1, 2)) %>%
+  group_by(state_code) %>%
+  summarise(population = sum(Total, na.rm = TRUE), .groups = "drop")
+
+# Step 3: Join and compute approximate incidence and 95% CI
+incidence_sex_age_state <- chik_sex_age_state %>%
+  left_join(population_state, by = "state_code") %>%
+  mutate(
+    incidence_per_100k = (cases / population) * 100000,
+    se = sqrt(cases) / population * 100000,
+    ci_lower = pmax(0, incidence_per_100k - 1.96 * se),
+    ci_upper = incidence_per_100k + 1.96 * se
+  )
+
+# Step 4: Plot (faceted by state)
+ggplot(incidence_sex_age_state, aes(x = age_group, y = incidence_per_100k, fill = Sex_Code)) +
+  geom_col(position = position_dodge(width = 0.9), width = 0.8) +
+  geom_errorbar(
+    aes(ymin = ci_lower, ymax = ci_upper),
+    position = position_dodge(width = 0.9),
+    width = 0.3
+  ) +
+  scale_fill_manual(
+    values = c("F" = "#e41a1c", "M" = "#377eb8"),
+    name = "Sex",
+    labels = c("Female", "Male")
+  ) +
+  facet_wrap(~ state_code, scales = "free_y") +
+  labs(
+    title = " Chikungunya Incidence per 100,000 for Age grouped by State",
+    x = "Age Group (Years)",
+    y = "Approximate Incidence per 100,000"
+  ) +
+  theme_minimal(base_size = 13) +
+theme(
+  legend.position = "top",
+  axis.text.x = element_text(angle = 45, hjust = 1, size = 8),  # smaller x-axis labels
+  axis.text.y = element_text(size = 9),                         # smaller y-axis labels
+  strip.text = element_text(size = 9),                          # smaller facet labels
+  axis.title = element_text(size = 11),                         # optional: slightly smaller axis titles
+  panel.grid.major.x = element_blank()
+) +
+  theme(
+    legend.position = "top",
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.major.x = element_blank()
+  )
+```
+
+```{r}
+library(data.table)
+library(ggplot2)
+library(geofacet)
+library(dplyr)
+library(forcats)
+library(cowplot)
+library(sf)
+library(ISOweek)
+library(ggpubr)
+library(ggrepel)
+library(beepr)
+library(sjPlot)
+library(stringr)
+library(ggspatial)
+
+## source functions
+source("Brazil-arbovirus-meteo-main/R/plotting_functions.R") 
+source("Brazil-arbovirus-meteo-main/R/extra_functions.R") 
+source("Brazil-arbovirus-meteo-main/R/univariable_analysis_functions.R") 
+source("Brazil-arbovirus-meteo-main/R/multivariable_analysis_functions.R") 
+## read in shapefile 
+shapefile <- readRDS("Brazil-arbovirus-meteo-main/data/Brazil_2_geobr.RDS") 
+
+
+## read in shapefile
+shapefile <- shapefile %>%
+  mutate(code_muni = as.character(code_muni))
+shapefile <- shapefile %>%
+  mutate(code_muni = substr(code_muni, 1, nchar(code_muni) - 1))
+incidence_per_muni <- incidence_per_muni %>%
+  mutate(municipality_code = as.character(municipality_code))
+
+#Join shapefile with incidence data by municipality code
+shapefile_incidence <- shapefile %>%
+  left_join(
+    incidence_per_muni %>%
+      select(municipality_code, incidence_per_municipalities_100k),
+    by = c("code_muni" = "municipality_code")
+  )
+
+## path to read in graph for INLA models
+GRAPH <- "data/Brazil2.graph"
+
+library(sf)
+library(ggplot2)
+
+# Assuming your shapefile is already read as `shapefile`
+# Example: shapefile <- st_read("path/to/your/shapefile.shp")
+
+# Check the structure
+glimpse(shapefile_incidence)
+
+
+shapefile_projected <- st_transform(shapefile_incidence, 5880)
+
+# 2. Plot with accurate scale bar
+p <- ggplot(data = shapefile_projected) +
+  # 1️⃣ Plot municipalities with fill based on incidence
+  geom_sf(aes(fill = incidence_per_municipalities_100k),
+          color = "grey40", size = 0.1) +
+  
+  # 2️⃣ Color scale with log10 transformation
+  scale_fill_viridis_c(
+    option = "plasma",
+    na.value = "lightgrey",
+    trans = "log10",
+    name = "Incidence per 100k (log10)"
+  ) +
+  
+  # 3️⃣ Coordinate system
+  coord_sf(datum = NA, expand = FALSE) +
+  
+  # 4️⃣ Minimal theme and legend formatting
+  theme_void() +
+  theme(
+    legend.position = "right",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 9)
+  ) +
+  
+  # 5️⃣ Add scale bar
+  annotation_scale(
+    location = "bl",          # bottom-left corner
+    width_hint = 0.25,
+    style = "ticks",
+    text_cex = 0.8,
+    line_width = 0.8,
+    unit_category = "metric",
+    bar_cols = c("black", "white"),
+    text_pad = unit(0.1, "cm")
+  ) +
+  
+  # 6️⃣ Add north arrow
+  annotation_north_arrow(
+    location = "bl",
+    which_north = "true",
+    pad_x = unit(0.3, "in"),
+    pad_y = unit(0.8, "in"),
+    style = north_arrow_fancy_orienteering
+  )
+p
+
+
+
+```
+```{r}
+library(data.table)
+library(ggplot2)
+library(geofacet)
+library(dplyr)
+library(forcats)
+library(cowplot)
+library(sf)
+library(ISOweek)
+library(ggpubr)
+library(ggrepel)
+library(beepr)
+library(sjPlot)
+library(stringr)
+library(ggspatial)
+
+## source functions
+source("Brazil-arbovirus-meteo-main/R/plotting_functions.R")
+source("Brazil-arbovirus-meteo-main/R/extra_functions.R")
+source("Brazil-arbovirus-meteo-main/R/univariable_analysis_functions.R")
+source("Brazil-arbovirus-meteo-main/R/multivariable_analysis_functions.R")
+## read in shapefile
+shapefile_state <- readRDS("Brazil-arbovirus-meteo-main/data/Brazil_2_geobr.RDS")
+
+incidence_per_state <- incidence_per_state %>%
+  group_by(state) %>%
+  mutate(incidence_avr = mean(incidence_per_state_100k, na.rm = TRUE)) %>%
+  ungroup()
+
+shapefile_state <- shapefile_state %>%
+  mutate(abbrev_state = as.character(abbrev_state))
+
+incidence_per_state <- incidence_per_state %>%
+  mutate(state = as.character(state))
+
+# --- Join shapefile and incidence data ---
+shapefile_incidence_state <- shapefile_state %>%
+  left_join(
+    incidence_per_state %>% select(state, incidence_avr),
+    by = c("abbrev_state" = "state")
+  )
+
+# --- Transform CRS for accuracy ---
+shapefile_projected <- st_transform(shapefile_incidence_state, 5880)
+
+# --- FIXED: Use the automatic geometry combination in summarise ---
+shapefile_state_combined <- shapefile_projected %>%
+  group_by(abbrev_state) %>%
+  summarise(incidence_avr = first(incidence_avr)) %>%  # sf automatically combines geometry
+  ungroup() %>%
+  st_make_valid()
+
+# --- FIXED: Simple centroid calculation ---
+state_centroids <- shapefile_state_combined %>%
+  st_centroid() %>%
+  mutate(
+    X = st_coordinates(.)[, 1],
+    Y = st_coordinates(.)[, 2]
+  ) %>%
+  st_drop_geometry()
+
+# --- FIXED: Clean map plot with NO white spots ---
+p <- ggplot() +
+  # Single layer with colored states - NO base layer
+  geom_sf(
+    data = shapefile_state_combined,
+    aes(fill = incidence_avr),
+    color = "black",  # Black borders to define states
+    linewidth = 0.2   # Thin borders
+  ) +
+  # Add state labels
+  geom_text(
+    data = state_centroids,
+    aes(x = X, y = Y, label = abbrev_state),
+    size = 2.5,
+    color = "white",
+    fontface = "bold"
+  ) +
+  # Color scale
+  scale_fill_viridis_c(
+    option = "plasma",
+    na.value = "gray80",
+    trans = "log10",
+    name = "Incidence per 100k (log10)",
+    breaks = c(1, 3, 10, 30),
+    labels = c("1.0", "3.0", "10.0", "30.0")
+  ) +
+  labs(title = "Average Chikungunya Incidence per 100k by State") +
+  annotation_scale(
+    location = "bl",
+    width_hint = 0.25,
+    style = "ticks",
+    text_cex = 0.8,
+    line_width = 0.8,
+    unit_category = "metric",
+    bar_cols = c("black", "white"),
+    text_pad = unit(0.1, "cm")
+  ) +
+  annotation_north_arrow(
+    location = "bl",
+    which_north = "true",
+    pad_x = unit(0.3, "in"),
+    pad_y = unit(0.8, "in"),
+    style = north_arrow_fancy_orienteering
+  ) +
+  theme_void() +
+  theme(
+    legend.position = "right",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 8),
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+p
+
+
+
+```
+
+
+```{r}
+library(data.table)
+library(ggplot2)
+library(geofacet)
+library(dplyr)
+library(forcats)
+library(cowplot)
+library(sf)
+library(ISOweek)
+library(ggpubr)
+library(ggrepel)
+library(beepr)
+library(sjPlot)
+library(stringr)
+library(ggspatial)
+
+## source functions
+source("Brazil-arbovirus-meteo-main/R/plotting_functions.R")
+source("Brazil-arbovirus-meteo-main/R/extra_functions.R")
+source("Brazil-arbovirus-meteo-main/R/univariable_analysis_functions.R")
+source("Brazil-arbovirus-meteo-main/R/multivariable_analysis_functions.R")
+## read in shapefile
+shapefile_state <- readRDS("Brazil-arbovirus-meteo-main/data/Brazil_2_geobr.RDS")
+
+# First, check the actual structure of the shapefile
+print("Column names in shapefile:")
+print(names(shapefile_state))
+
+print("Geometry column name:")
+print(attr(shapefile_state, "sf_column"))
+
+incidence_per_state <- incidence_per_state %>%
+  group_by(state) %>%
+  mutate(incidence_avr = mean(incidence_per_state_100k, na.rm = TRUE)) %>%
+  ungroup()
+
+shapefile_state <- shapefile_state %>%
+  mutate(abbrev_state = as.character(abbrev_state))
+
+incidence_per_state <- incidence_per_state %>%
+  mutate(state = as.character(state))
+
+# --- Join shapefile and incidence data ---
+shapefile_incidence_state <- shapefile_state %>%
+  left_join(
+    incidence_per_state %>% select(state, incidence_avr),
+    by = c("abbrev_state" = "state")
+  )
+
+# --- Transform CRS for accuracy ---
+shapefile_projected <- st_transform(shapefile_incidence_state, 5880)
+
+# --- FIXED: Let sf automatically handle geometry combination ---
+shapefile_state_combined <- shapefile_projected %>%
+  group_by(abbrev_state) %>%
+  summarise(incidence_avr = first(incidence_avr)) %>%  # sf automatically combines geometry
+  ungroup() %>%
+  st_make_valid()
+
+# Check if we still have multiple polygons per state
+print(paste("Number of polygons after summarise:", nrow(shapefile_state_combined)))
+
+# If we still have multiple polygons, use st_union with the correct geometry column name
+if (nrow(shapefile_state_combined) > 27) {  # Brazil has 27 states
+  geometry_col <- attr(shapefile_state_combined, "sf_column")
+  shapefile_state_combined <- shapefile_state_combined %>%
+    group_by(abbrev_state) %>%
+    summarise(
+      incidence_avr = first(incidence_avr),
+      geometry = st_union(!!sym(geometry_col))  # Use the actual geometry column name
+    ) %>%
+    ungroup() %>%
+    st_make_valid()
+}
+
+# --- Create centroids for labeling ---
+state_centroids <- shapefile_state_combined %>%
+  st_centroid() %>%
+  st_as_sf()
+
+# --- Map with ONE label per state ---
+p <- ggplot() +
+  # Single layer with colored states
+  geom_sf(
+    data = shapefile_state_combined,
+    aes(fill = incidence_avr),
+    color = NA,  # No borders
+    linewidth = 0
+  ) +
+  # Add ONE label per state using centroids
+  geom_sf_text(
+    data = state_centroids,
+    aes(label = abbrev_state),
+    size = 3,
+    color = "white",
+    fontface = "bold"
+  ) +
+  # Color scale
+  scale_fill_viridis_c(
+    option = "plasma",
+    na.value = "gray80",
+    trans = "log10",
+    name = "Incidence per 100k (log10)",
+    breaks = c(1, 3, 10, 30),
+    labels = c("1.0", "3.0", "10.0", "30.0")
+  ) +
+  labs(title = "Average Chikungunya Incidence per 100k by State") +
+  annotation_scale(
+    location = "bl",
+    width_hint = 0.25,
+    style = "ticks",
+    text_cex = 0.8,
+    line_width = 0.8,
+    unit_category = "metric",
+    bar_cols = c("black", "white"),
+    text_pad = unit(0.1, "cm")
+  ) +
+  annotation_north_arrow(
+    location = "bl",
+    which_north = "true",
+    pad_x = unit(0.3, "in"),
+    pad_y = unit(0.8, "in"),
+    style = north_arrow_fancy_orienteering
+  ) +
+  theme_void() +
+  theme(
+    legend.position = "right",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 8),
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    plot.background = element_rect(fill = "white", color = NA)
+  )
+
+p
+```
+
+
+
