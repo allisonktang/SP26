@@ -6,3 +6,8 @@
 .quarto
 .data
 .RDataTemp
+
+# Ignore the large datasets
+data/bd_CHIKV_positive_2013_2025_english.csv
+data/combined_all_climate_data_2016_2024(7).rds
+data/dengue/
