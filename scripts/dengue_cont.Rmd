@@ -7,7 +7,7 @@ output: html_document
 
 ```{r}
 rm(list = ls())
-
+setwd("/Users/allison/Desktop/Research_BentoLab/SP26")
 library(readr)
 library(dplyr)
 library(lubridate)
@@ -21,7 +21,7 @@ state_map <- c(
   "35" = "SP", "17" = "TO"
 )
 
-dengue <- read_csv("DENV_per_100k_mun.csv") %>%
+dengue <- read_csv("data/DENV_per_100k_mun.csv") %>%
   rename(muni = CD_MUN) %>%
   mutate(
     state = substr(as.character(muni), 1,2),
