@@ -30,7 +30,7 @@ base_theme <- theme_classic() +
     panel.border = element_rect(color = "black", fill = NA, linewidth = 0.3),
     strip.background = element_blank(),
     strip.text = element_text(face = "plain"),
-    axis.text.x = element_text(angle = 90, hjust = 1) + 
+    axis.text.x = element_text(angle = 90, hjust = 1), 
     plot.title = element_text(
       size = 16,
       hjust = 0.5,          
