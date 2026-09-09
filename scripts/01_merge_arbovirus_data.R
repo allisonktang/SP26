@@ -176,12 +176,27 @@ mean(is.na(merged$chikvCases))
 #    chikvIncidence  = chikvCases / pop_tot * 100000,
 #  )
 
-merged <- merged |>
+merged <- merged %>%
   mutate(year_month = as.Date(sprintf("%d-%02d-01", year, month)))
 
 glimpse(merged)
 write_csv(merged, "Brazil_arbovirus_monthly_data_2016_2025.csv")
 
+summary_counts <- merged %>%
+  summarise(
+    # 1. num municipalities
+    total_municipalities = n_distinct(muni),
+    
+    # 2. nume muni-month observations (total rows in the dataset)
+    total_muni_month_obs = n(),
+    
+    # 3. total case counts (ignores NA)
+    total_dengue_cases = sum(dengueCases, na.rm = TRUE),
+    total_zika_cases   = sum(zikaCases, na.rm = TRUE),
+    total_chikv_cases  = sum(chikvCases, na.rm = TRUE)
+  )
+
+print(summary_counts)
 
 # convert the dataset into long format
 mergedLong <- merged %>%
@@ -326,12 +341,18 @@ ggplot(mergedLong_muni,
     axis.text.x = element_text(angle = 90, hjust = 1)
   )
 
+
+# incidence heatmap
+# goal: municipality level incidence heatmap (ungrouped), raw + log10 scale
+# input: "Brazil_arbovirus_monthly_data_2016_2025.csv"
 ggplot(mergedLong_muni,
        aes(x = year_month, y = factor(muni), fill = incidence)) +
   geom_tile(color = NA, linewidth = 0) +
   facet_wrap(~ disease, ncol = 1) +
-  scale_fill_viridis_c(option = "G",
-    na.value = "white",
+  scale_fill_gradient(
+    low="#FCF0CE",
+    high = "#D4180A",
+    na.value = "white", 
     trans = "log10") + 
   scale_x_date(date_labels = "%Y-%m", date_breaks = "6 months") +
   labs(x = "Time", y = "Municipality", fill = "Incidence") +
@@ -339,6 +360,7 @@ ggplot(mergedLong_muni,
   theme(
     axis.text.y = element_blank(),
     axis.ticks.y = element_blank(),
+    axis.line = element_blank(),
     panel.border = element_rect(color = "black", fill = NA, linewidth = 0.3),
     strip.background = element_blank(),
     strip.text = element_text(face = "plain"),
