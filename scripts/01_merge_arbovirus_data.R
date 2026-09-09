@@ -180,7 +180,7 @@ merged <- merged %>%
   mutate(year_month = as.Date(sprintf("%d-%02d-01", year, month)))
 
 glimpse(merged)
-write_csv(merged, "Brazil_arbovirus_monthly_data_2016_2025.csv")
+write_csv(merged, "data/Brazil_arbovirus_monthly_data_2016_2025.csv")
 
 summary_counts <- merged %>%
   summarise(

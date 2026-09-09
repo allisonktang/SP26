@@ -10,7 +10,7 @@ library(tidyr)
 library(ggplot2)
 library(scales)
 
-merged <- read_csv("Brazil_arbovirus_monthly_data_2016_2025.csv")
+merged <- read_csv("data/Brazil_arbovirus_monthly_data_2016_2025.csv")
 
 state_lookup <- c(
   "11" = "RO", "12" = "AC", "13" = "AM", "14" = "RR", "15" = "PA",
@@ -109,6 +109,6 @@ state_month <- merged %>%
     chikvIncidence  = chikvCases  / pop_tot * 100000
   )
 
-write_csv(state_month, "Brazil_arbovirus_state_monthly_2016_2025.csv")
-write_csv(state_year,  "Brazil_arbovirus_state_yearly_2016_2025.csv")
+write_csv(state_month, "data/Brazil_arbovirus_state_monthly_2016_2025.csv")
+write_csv(state_year,  "data/Brazil_arbovirus_state_yearly_2016_2025.csv")
 

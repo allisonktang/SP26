@@ -6,7 +6,7 @@ library(dplyr)
 library(tidyr)
 library(ggplot2)
 
-merged <- read_csv("Brazil_arbovirus_monthly_data_2016_2025.csv")
+merged <- read_csv("data/Brazil_arbovirus_monthly_data_2016_2025.csv")
 
 mergedLong_muni <- merged %>%
   pivot_longer(
