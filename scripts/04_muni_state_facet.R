@@ -10,8 +10,8 @@ library(ggplot2)
 library(tidytext)
 library(scales)
 
-merged     <- read_csv("Brazil_arbovirus_monthly_data_2016_2025.csv")
-state_year <- read_csv("Brazil_arbovirus_state_yearly_2016_2025.csv")
+merged     <- read_csv("data/Brazil_arbovirus_monthly_data_2016_2025.csv")
+state_year <- read_csv("data/Brazil_arbovirus_state_yearly_2016_2025.csv")
 
 state_lookup <- c(
   "11" = "RO", "12" = "AC", "13" = "AM", "14" = "RR", "15" = "PA",
@@ -34,16 +34,38 @@ state_order <- state_year %>%
 muniLong <- merged %>%
   filter(!is.na(state)) %>%
   mutate(state = factor(state, levels = state_order)) %>%
+  group_by(muni, state, year) %>%
+  summarise(
+    dengueCases = sum(dengueCases, na.rm = T),
+    zikaCases = sum(zikaCases,   na.rm = TRUE),
+    chikvCases  = sum(chikvCases,  na.rm = TRUE),
+    pop_tot     = first(pop_tot), #repeat value for each month
+    .groups = "drop"
+  ) %>%
+  mutate(
+    dengueIncidence = dengueCases / pop_tot * 100000,
+    zikaIncidence   = zikaCases   / pop_tot * 100000,
+    chikvIncidence  = chikvCases  / pop_tot * 100000
+  ) %>%
   pivot_longer(
     cols = c(dengueIncidence, zikaIncidence, chikvIncidence),
     names_to = "disease", values_to = "incidence"
   ) %>%
-  mutate(disease = recode(disease,
-                          dengueIncidence = "Dengue", zikaIncidence = "Zika", chikvIncidence = "Chikungunya"))
-
+  mutate(
+    muni = sprintf("%06d", as.integer(muni)),
+    disease = recode(
+      disease,
+      dengueIncidence = "Dengue",
+      zikaIncidence = "Zika",
+      chikvIncidence = "Chikungunya"
+    )
+  )
 
 plot_muni_by_disease <- function(df, disease_name) {
-  d <- df %>% filter(disease == disease_name, !is.na(incidence), incidence > 0)
+  d <- df %>% 
+    filter(disease == disease_name, 
+           !is.na(incidence),
+           incidence > 0)
   
   ggplot(d, aes(
     x = factor(year),
@@ -81,4 +103,20 @@ print(dengue_plot)
 print(zika_plot)
 print(chikv_plot)
 
+ggsave(
+  "figures/chikv_muni_state_heatmap.png",
+  plot = chikv_plot,
+  width = 8,
+  height = 10,
+  units = "in",
+  dpi = 600
+)
 
+ggsave(
+  "figures/dengue_muni_state_heatmap.png",
+  plot = dengue_plot,
+  width = 8,
+  height = 10,
+  units = "in",
+  dpi = 600
+)
