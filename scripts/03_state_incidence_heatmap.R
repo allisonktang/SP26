@@ -62,13 +62,27 @@ state_year <- cases_state_year %>%
                           chikvIncidence = "Chikungunya"),
          disease = factor(disease, levels = c("Dengue", "Zika", "Chikungunya")))
 
+
+# edit state order
+state_order <- c(
+  "AC", "AM", "PA", "RR", "RO", "AP", "TO",
+  "PI", "BA", "MA", "PE", "CE", "AL", "SE", "RN", "PB",
+  "MT", "GO", "MS","DF",
+  "MG", "ES", "RJ", "SP",
+  "PR", "SC", "RS"
+)
+
+state_year <- state_year %>%
+  mutate(state = factor(state, levels = rev(state_order)))
+
+
 base_theme <- theme_classic() + 
   theme(
     panel.grid = element_blank(),
     panel.border = element_rect(color = "black", fill = NA, linewidth = 0.3),
     axis.line = element_blank(),
     strip.background = element_blank(),
-    axis.text.y = element_blank(),
+    axis.text.y = element_text(size = 6),
     axis.ticks.y = element_blank(),
     axis.text.x = element_text(angle = 90, hjust = 1),
     plot.title = element_text(size = 16, hjust = 0.5, margin = margin(b=10))
@@ -76,7 +90,7 @@ base_theme <- theme_classic() +
 
 
 
-state_year_heatmap <- ggplot(state_year, aes(x=factor(year), y=reorder(state, incidence, FUN = max), fill = incidence)) +
+state_year_heatmap <- ggplot(state_year, aes(x=factor(year), y=state, fill = incidence)) +
   geom_tile(color = NA, linewidth = 0) +
   facet_wrap(~ disease, ncol = 1) +
   scale_fill_gradient(
@@ -111,4 +125,32 @@ state_month <- merged %>%
 
 write_csv(state_month, "data/Brazil_arbovirus_state_monthly_2016_2025.csv")
 write_csv(state_year,  "data/Brazil_arbovirus_state_yearly_2016_2025.csv")
+
+# save as png, tiff, and pdf
+ggsave(
+  "figures/state_year_heatmap.png",
+  plot = state_year_heatmap,
+  width = 8,
+  height = 10,
+  units = "in",
+  dpi = 600
+)
+
+ggsave(
+  "figures/state_year_heatmap.tiff",
+  plot = state_year_heatmap,
+  width = 8,
+  height = 10,
+  units = "in",
+  dpi = 600,
+  compression = "lzw"
+)
+
+ggsave(
+  "figures/state_year_heatmap.pdf",
+  plot = state_year_heatmap,
+  width = 8,
+  height = 10,
+  units = "in"
+)
 
