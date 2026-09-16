@@ -50,7 +50,7 @@ colnames(dengue)
 
 zika <- read_csv("data/combined_zika_2016_2025.csv") %>%
   filter(between(NU_ANO, 2016, 2025)) %>%
-  rename(muni = MUNI) %>%
+  mutate(muni = sprintf("%06d", as.integer(MUNI))) %>%
   filter(!is.na(muni)) %>%
   mutate(
     date = ymd(DT_NOTIFIC),
@@ -61,8 +61,9 @@ zika <- read_csv("data/combined_zika_2016_2025.csv") %>%
 glimpse(zika) # check
 colnames(zika)
 
-# CHIKV from winson smile emoji (???)
+# CHIKV from winson??
 chikv <- read_csv("data/bd_CHIKV_positive_2013_2025_english.csv") %>% 
+  filter(Auxiliary_Virus == "Chikungunya") %>%
   filter (between(Collection_Year, 2016, 2025)) %>%
   rename(muni = Municipality_Code) %>%
   filter(!is.na(muni)) %>%
