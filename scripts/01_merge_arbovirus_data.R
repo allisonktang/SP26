@@ -164,31 +164,40 @@ mean(is.na(merged$dengueCases))
 mean(is.na(merged$zikaCases))
 mean(is.na(merged$chikvCases))
 
-# to replace NA with 0:
-#merged <- merged %>%
-#  mutate(
-#    dengueCases = replace_na(dengueCases, 0),
-#    zikaCases   = replace_na(zikaCases, 0),
-#    chikvCases  = replace_na(chikvCases, 0),
-
-    # recalc incidence
-#    dengueIncidence = dengueCases / pop_tot * 100000,
-#    zikaIncidence   = zikaCases / pop_tot * 100000,
-#    chikvIncidence  = chikvCases / pop_tot * 100000,
-#  )
-
 merged <- merged %>%
   mutate(year_month = as.Date(sprintf("%d-%02d-01", year, month)))
 
-glimpse(merged)
+# sanity check: verify incidence for one muni-year (Sao Paolo City, 2023)
+merged %>%
+  filter(muni == "355030", year == 2023) %>%
+  summarise(
+    pop = first(pop_tot),
+    
+    dengue_cases_sum  = sum(dengueCases, na.rm = T),
+    zika_cases_sum    = sum(zikaCases,   na.rm = T),
+    chikv_cases_sum   = sum(chikvCases,  na.rm = T),
+    
+    dengue_manual = dengue_cases_sum / pop * 100000,
+    zika_manual   = zika_cases_sum   / pop * 100000,
+    chikv_manual  = chikv_cases_sum  / pop * 100000,
+    
+    dengue_from_col = sum(dengueIncidence, na.rm = T),
+    zika_from_col   = sum(zikaIncidence,   na.rm = T),
+    chikv_from_col  = sum(chikvIncidence,  na.rm = T)
+  ) %>%
+  glimpse()
+
+
 write_csv(merged, "data/Brazil_arbovirus_monthly_data_2016_2025.csv")
 
+
+# count cases
 summary_counts <- merged %>%
   summarise(
     # 1. num municipalities
     total_municipalities = n_distinct(muni),
     
-    # 2. nume muni-month observations (total rows in the dataset)
+    # 2. num muni-month observations (total rows in the dataset)
     total_muni_month_obs = n(),
     
     # 3. total case counts (ignores NA)
@@ -199,6 +208,8 @@ summary_counts <- merged %>%
 
 print(summary_counts)
 
+
+# plotting
 # convert the dataset into long format
 mergedLong <- merged %>%
   select(year_month, 
