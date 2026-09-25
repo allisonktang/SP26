@@ -3,6 +3,8 @@
 # input: Brazil_arbovirus_monthly_data_2016_2025.csv, Brazil_arbovirus_state_yearly_2016_2025.csv
 # notes: state level incidence is calculated by (sum cases/ sum population), not an average of municipality incidence rates
 
+rm(list = ls())
+
 library(readr)
 library(dplyr)
 library(tidyr)
@@ -27,8 +29,8 @@ merged <- merged %>%
 
 state_order <- state_year %>%
   group_by(state) %>%
-  summarise(max_Incidence = max(incidence, na.rm = TRUE)) %>%
-  arrange(desc(max_Incidence)) %>%
+  summarise(max_incidence = max(incidence, na.rm = T)) %>%
+  arrange(desc(max_incidence)) %>%
   pull(state)
 
 muniLong <- merged %>%
@@ -37,8 +39,8 @@ muniLong <- merged %>%
   group_by(muni, state, year) %>%
   summarise(
     dengueCases = sum(dengueCases, na.rm = T),
-    zikaCases = sum(zikaCases,   na.rm = TRUE),
-    chikvCases  = sum(chikvCases,  na.rm = TRUE),
+    zikaCases = sum(zikaCases,   na.rm = T),
+    chikvCases  = sum(chikvCases,  na.rm = T),
     pop_tot     = first(pop_tot), #repeat value for each month
     .groups = "drop"
   ) %>%
@@ -76,7 +78,7 @@ plot_muni_by_disease <- function(df, disease_name) {
     facet_wrap(~ state, scales = "free_y") +
     scale_y_reordered() +
     scale_fill_gradient(
-      low = "#FCF0CE", high = "#D4180A", trans = "log",
+      low = "#FCF0CE", high = "#D4180A", trans = "log10", na.value="white",
       breaks = trans_breaks("log10", function(x) 10^x),
       labels = trans_format("log10", math_format(10^.x))
     ) +
@@ -89,7 +91,7 @@ plot_muni_by_disease <- function(df, disease_name) {
       axis.text.y = element_blank(),
       axis.ticks.y = element_blank(),
       panel.grid = element_blank(),
-    #  strip.text = element_text(face = "bold"),
+      strip.text = element_text(face = "bold"),
       legend.position = "bottom",
       plot.title = element_text(size = 16, hjust = 0.5, margin = margin(b = 10))
     )
@@ -113,6 +115,15 @@ ggsave(
 )
 
 ggsave(
+  "figures/zika_muni_state_heatmap.png",
+  plot = zika_plot,
+  width = 8,
+  height = 10,
+  units = "in",
+  dpi = 600
+)
+
+ggsave(
   "figures/dengue_muni_state_heatmap.png",
   plot = dengue_plot,
   width = 8,
@@ -120,3 +131,74 @@ ggsave(
   units = "in",
   dpi = 600
 )
+
+muniLong %>%
+  filter(
+    state == "SC",
+    disease == "Chikungunya"
+  ) %>%
+  summarise(
+    min_incidence = min(incidence, na.rm = TRUE),
+    median_incidence = median(incidence, na.rm = TRUE),
+    mean_incidence = mean(incidence, na.rm = TRUE),
+    max_incidence = max(incidence, na.rm = TRUE)
+  )
+muniLong %>%
+  filter(
+    state == "SC",
+    disease == "Chikungunya"
+  ) %>%
+  arrange(desc(incidence)) %>%
+  select(muni, year, incidence) %>%
+  head(20)
+
+muniLong %>%
+  filter(
+    disease == "Chikungunya",
+    incidence > 0
+  ) %>%
+  summarise(
+    min = min(incidence),
+    q25 = quantile(incidence, 0.25),
+    median = median(incidence),
+    q75 = quantile(incidence, 0.75),
+    max = max(incidence)
+  )
+muniLong %>%
+  filter(
+    disease == "Chikungunya",
+    state == "SC",
+    incidence > 0
+  ) %>%
+  summarise(
+    min = min(incidence),
+    q25 = quantile(incidence, 0.25),
+    median = median(incidence),
+    q75 = quantile(incidence, 0.75),
+    max = max(incidence)
+  )
+
+sc_plot <- muniLong %>%
+  filter(
+    state == "SC",
+    disease == "Chikungunya",
+    incidence > 0
+  ) %>%
+  ggplot(
+    aes(
+      x = factor(year),
+      y = reorder_within(muni, incidence, state),
+      fill = incidence
+    )
+  ) +
+  geom_tile() +
+  facet_wrap(~state, scales = "free_y") +
+  scale_y_reordered() +
+  scale_fill_gradient(
+    low = "#FCF0CE",
+    high = "#D4180A",
+    trans = "log"
+  ) +
+  theme_minimal()
+
+sc_plot
