@@ -7,6 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "/Users/allison/Desktop/Research_BentoLab/SP26")
 ```
 
 ```{r}
@@ -130,7 +131,6 @@ weekly_iso <- cases[1:100,] %>%
 
 
 ```{r}
-setwd("/Users/allison/Desktop/Research_BentoLab/CHIKV_26")
 
 # Path to the DBF file
 dbf_path <- "data/BR_Municipios_2024.dbf"
@@ -786,7 +786,6 @@ library(sjPlot)
 library(stringr)
 library(ggspatial)
 
-setwd("/Users/allison/Desktop/Research_BentoLab/CHIKV_26")
 ## source functions
 source("Brazil-arbovirus-meteo-main/R/plotting_functions.R") 
 source("Brazil-arbovirus-meteo-main/R/extra_functions.R") 
@@ -892,7 +891,6 @@ library(beepr)
 library(sjPlot)
 library(stringr)
 library(ggspatial)
-setwd("/Users/allison/Desktop/Research_BentoLab/CHIKV_26")
 ## source functions
 source("Brazil-arbovirus-meteo-main/R/plotting_functions.R")
 source("Brazil-arbovirus-meteo-main/R/extra_functions.R")
