@@ -6,7 +6,8 @@
 .quarto
 .data
 .RDataTemp
-.figures
+
+figures/
 
 # Ignore the large datasets
 data/bd_CHIKV_positive_2013_2025_english.csv
