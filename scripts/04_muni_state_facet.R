@@ -132,6 +132,8 @@ ggsave(
   dpi = 600
 )
 
+
+# check SC
 muniLong %>%
   filter(
     state == "SC",
@@ -198,7 +200,64 @@ sc_plot <- muniLong %>%
     low = "#FCF0CE",
     high = "#D4180A",
     trans = "log"
-  ) +
-  theme_minimal()
+  ) + 
+  labs(x = "Year", y = "Municipality", fill = paste("Chikungunya", "\nincidence\nper 100k")) +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 1),
+    axis.ticks.x = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank(),
+    panel.background = element_blank(),    
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.3),
+    axis.line = element_blank(),
+    strip.background = element_blank(),
+  )
 
 sc_plot
+
+ggsave(
+  "figures/sc_plot_test.png",
+  plot = sc_plot,
+  width = 8,
+  height = 8,
+  units = "in",
+  dpi = 600
+)
+
+
+# see global scale
+muniLong %>%
+  filter(
+    disease == "Chikungunya",
+    incidence > 0
+  ) %>%
+  summarise(
+    min = min(incidence, na.rm = TRUE),
+    q25 = quantile(incidence, 0.25, na.rm = TRUE),
+    median = median(incidence, na.rm = TRUE),
+    q75 = quantile(incidence, 0.75, na.rm = TRUE),
+    max = max(incidence, na.rm = TRUE)
+  )
+
+muniLong %>%
+  filter(
+    disease == "Chikungunya",
+    incidence > 0
+  ) %>%
+  arrange(desc(incidence)) %>%
+  select(muni, state, year, incidence) %>%
+  head(10)
+
+muniLong %>%
+  filter(
+    state == "MG",
+    disease == "Chikungunya",
+    incidence > 0
+  ) %>%
+  summarise(
+    min = min(incidence),
+    q25 = quantile(incidence, 0.25),
+    median = median(incidence),
+    q75 = quantile(incidence, 0.75),
+    max = max(incidence)
+  )
