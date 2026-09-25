@@ -154,3 +154,130 @@ ggsave(
   units = "in"
 )
 
+###########################################
+#         plot geographic map             #
+###########################################
+library(geobr)
+library(sf)
+
+ br_states <- read_state(
+   year = 2020,
+   simplified = T
+ )
+
+names(br_states)
+
+state_labels <- data.frame(
+  state = c("RN", "PB", "PE", "AL", "SE", "ES", "RJ", "SC"),
+  x = c(-34, -34, -34, -35, -36, -38.5, -40, -47),
+  y = c(-5, -7, -8.1, -10, -12, -20, -23, -28)
+)
+
+# create plotting function
+plot_state_map <- function(data, geography, disease_name, year_value) {
+    map_data <- geography %>%
+      left_join(
+        data %>%
+          filter(
+            disease == disease_name,
+            year == year_value
+          ),
+        by = c("abbrev_state" = "state")
+      )
+    
+  ggplot(map_data) + 
+    geom_sf(
+      aes(fill = incidence),
+      color = "black",
+      linewidth = 0.2
+    ) +
+    geom_sf_text(
+      data = map_data %>%
+        filter(!abbrev_state %in% c("RN", "PB", "PE", "AL", "SE", "ES", "RJ", "SC")),
+      aes(label = abbrev_state),
+      size = 3
+    ) +
+    geom_text(
+      data = state_labels,
+      aes(x = x, y = y, label = state),
+      size = 3
+    )+
+    scale_fill_gradient(
+      low = "#FCF0CE",
+      high = "#D4180A",
+      na.value = "white",
+      trans = "log",
+      breaks = trans_breaks("log10", function(x) 10^x),
+      labels = trans_format("log10", math_format(10^.x))
+    ) +
+    labs(
+      fill = "Incidence\nper 100k",
+      title = paste0(
+        disease_name,
+        " Incidence by State, ",
+        year_value,
+        " (log scale)"
+      )
+    ) +
+    base_theme +
+    theme(
+      panel.border = element_blank(),
+      axis.text = element_blank(),
+      axis.ticks = element_blank(),
+      axis.title = element_blank()
+    ) +
+    coord_sf(datum = NA)
+}
+
+
+dengue_map <- plot_state_map(
+  state_year,
+  br_states,
+  "Dengue",
+  2025
+)
+
+zika_map <- plot_state_map(
+  state_year,
+  br_states,
+  "Zika",
+  2025
+)
+
+chikv_map <- plot_state_map(
+  state_year,
+  br_states,
+  "Chikungunya",
+  2025
+)
+
+dengue_map
+zika_map
+chikv_map
+
+ggsave(
+  "figures/dengue_geo_heatmap_2025.png",
+  plot = dengue_map,
+  width = 8,
+  height = 8,
+  units = "in",
+  dpi = 600
+)
+
+ggsave(
+  "figures/zika_geo_heatmap_2025.png",
+  plot = zika_map,
+  width = 8,
+  height = 8,
+  units = "in",
+  dpi = 600
+)
+
+ggsave(
+  "figures/chikv_geo_heatmap_2025.png",
+  plot = chikv_map,
+  width = 8,
+  height = 8,
+  units = "in",
+  dpi = 600
+)
