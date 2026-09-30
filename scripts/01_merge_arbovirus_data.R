@@ -167,7 +167,7 @@ mean(is.na(merged$chikvCases))
 merged <- merged %>%
   mutate(year_month = as.Date(sprintf("%d-%02d-01", year, month)))
 
-# sanity check: verify incidence for one muni-year (Sao Paolo City, 2023)
+# sanity check: verify incidence for one muni-year (Sao Paulo City, 2023)
 merged %>%
   filter(muni == "355030", year == 2023) %>%
   summarise(
