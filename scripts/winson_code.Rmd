@@ -1011,7 +1011,7 @@ library(beepr)
 library(sjPlot)
 library(stringr)
 library(ggspatial)
-#setwd("/Users/allison/Desktop/Research_BentoLab/CHIKV_26/Brazil-arbovirus-meteo-main/")
+#setwd("/Users/allison/Desktop/Research_BentoLab/SP26/Brazil-arbovirus-meteo-main/")
 ## source functions
 source("Brazil-arbovirus-meteo-main/R/plotting_functions.R")
 source("Brazil-arbovirus-meteo-main/R/extra_functions.R")
