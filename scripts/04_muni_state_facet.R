@@ -74,7 +74,7 @@ plot_muni_by_disease <- function(df, disease_name) {
     y = reorder_within(muni, incidence, state),
     fill = incidence
   )) +
-    geom_tile(color = "#fcf0ce") +
+    geom_tile() +
     facet_wrap(~ state, scales = "free_y") +
     scale_y_reordered() +
     scale_fill_gradient(
@@ -132,6 +132,74 @@ ggsave(
   dpi = 600
 )
 
+# plot with a fixed scale
+shared_breaks <- c(0, 10, 50, 100, 500, 1000, Inf)
+shared_colors <- colorRampPalette(c("#FCF0CE", "#D4180A"))(6)
+bin_labels <- c("0-10", "10-50", "50-100", "100-500", "500-1000", "1000+")
+
+plot_muni_by_disease_fixed <- function(df, disease_name, breaks, colors, labels) {
+  d <- df %>% 
+    filter(disease == disease_name, !is.na(incidence), incidence >= 0) %>%
+    mutate(
+      incidence_bin = cut(incidence, breaks = breaks, labels = labels,
+                          include.lowest = TRUE, right = FALSE)
+    )
+  
+  ggplot(d, aes(
+    x = factor(year),
+    y = reorder_within(muni, incidence, state),
+    fill = incidence_bin
+  )) +
+    geom_tile() +
+    facet_wrap(~ state, scales = "free_y") +
+    scale_y_reordered() +
+    scale_fill_manual(values = setNames(colors, labels), na.value = "white", drop = FALSE) +
+    labs(x = "Year", y = "Municipality", fill = paste(disease_name, "\nincidence\nper 100k"),
+         title = paste(disease_name, "incidence by municipality, grouped by state")) +
+    theme_minimal(base_size = 12) +
+    theme(
+      axis.text.x = element_text(angle = 90, hjust = 1),
+      axis.text.y = element_blank(),
+      axis.ticks.y = element_blank(),
+      panel.grid = element_blank(),
+      strip.text = element_text(),
+      legend.position = "bottom",
+      plot.title = element_text(size = 16, hjust = 0.5, margin = margin(b = 10))
+    )
+}
+
+dengue_plot_fixed <- plot_muni_by_disease_fixed(muniLong, "Dengue", shared_breaks, shared_colors, bin_labels)
+zika_plot_fixed   <- plot_muni_by_disease_fixed(muniLong, "Zika", shared_breaks, shared_colors, bin_labels)
+chikv_plot_fixed  <- plot_muni_by_disease_fixed(muniLong, "Chikungunya", shared_breaks, shared_colors, bin_labels)
+
+print(dengue_plot_fixed)
+
+ggsave(
+  "figures/chikv_fixed_muni_state_heatmap.png",
+  plot = chikv_plot_fixed,
+  width = 8,
+  height = 10,
+  units = "in",
+  dpi = 600
+)
+
+ggsave(
+  "figures/zika_fixed_muni_state_heatmap.png",
+  plot = zika_plot_fixed,
+  width = 8,
+  height = 10,
+  units = "in",
+  dpi = 600
+)
+
+ggsave(
+  "figures/dengue_fixed_muni_state_heatmap.png",
+  plot = dengue_plot_fixed,
+  width = 8,
+  height = 10,
+  units = "in",
+  dpi = 600
+)
 
 # check SC
 muniLong %>%
