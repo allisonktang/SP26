@@ -43,7 +43,7 @@ raw_plot <- ggplot(mergedLong_muni, aes(x = year_month, y = factor(muni), fill =
   geom_tile(color = NA, linewidth = 0) +
   facet_wrap(~ disease, ncol = 1) +
   scale_fill_gradient(
-    low="grey90",
+    low="#FCF0CE",
     high = "#D4180A",
     na.value = "white") +
   scale_x_date(date_labels = "%Y-%m", date_breaks = "6 months") +
@@ -56,7 +56,7 @@ log_plot <-  ggplot(mergedLong_muni, aes(x = year_month, y = factor(muni), fill 
    geom_tile(color = NA, linewidth = 0) +
    facet_wrap(~ disease, ncol = 1) +
    scale_fill_gradient(
-     low="grey90",
+     low="#FCF0CE",
      high = "#D4180A",
      na.value = "white",
      trans = "log10",
