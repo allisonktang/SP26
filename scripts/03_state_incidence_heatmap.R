@@ -4,13 +4,15 @@
 # input: Brazil_arbovirus_monthly_data_2016_2025.csv
 # notes: state level incidence is calculated by (sum cases/ sum population), not an average of municipality incidence rates
 
+rm(list = ls())
+
 library(readr)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
 library(scales)
 
-merged <- read_csv("data/Brazil_arbovirus_monthly_data_2016_2025.csv")
+merged <- read_csv("data/nBrazil_arbovirus_monthly_data_2016_2025.csv")
 
 state_lookup <- c(
   "11" = "RO", "12" = "AC", "13" = "AM", "14" = "RR", "15" = "PA",
@@ -123,12 +125,12 @@ state_month <- merged %>%
     chikvIncidence  = chikvCases  / pop_tot * 100000
   )
 
-write_csv(state_month, "data/Brazil_arbovirus_state_monthly_2016_2025.csv")
-write_csv(state_year,  "data/Brazil_arbovirus_state_yearly_2016_2025.csv")
+write_csv(state_month, "data/nBrazil_arbovirus_state_monthly_2016_2025.csv")
+write_csv(state_year,  "data/nBrazil_arbovirus_state_yearly_2016_2025.csv")
 
 # save as png, tiff, and pdf
 ggsave(
-  "figures/state_year_heatmap.png",
+  "figures/nstate_year_heatmap.png",
   plot = state_year_heatmap,
   width = 8,
   height = 10,
@@ -137,7 +139,7 @@ ggsave(
 )
 
 ggsave(
-  "figures/state_year_heatmap.tiff",
+  "figures/nstate_year_heatmap.tiff",
   plot = state_year_heatmap,
   width = 8,
   height = 10,
@@ -147,7 +149,7 @@ ggsave(
 )
 
 ggsave(
-  "figures/state_year_heatmap.pdf",
+  "figures/nstate_year_heatmap.pdf",
   plot = state_year_heatmap,
   width = 8,
   height = 10,
@@ -197,7 +199,11 @@ plot_state_by_region <- function(df, disease_name) {
       breaks = scales::trans_breaks("log10", function(x) 10^x),
       labels = scales::trans_format("log10", scales::math_format(10^.x))
     ) +
-    scale_x_date(date_labels = "%Y-%m", date_breaks = "6 months") +
+    scale_x_date(date_labels = "%Y-%m", 
+                 date_breaks = "6 months",
+                 limits = c(as.Date("2016-01-01"), 
+                            as.Date("2025-12-01")),
+                 expand = c(0, 0)) +
     labs(x = "Year-Month", y = "State", fill = "Incidence\n(log10)",
          title = paste(disease_name, "incidence by state, grouped by region")) +
     theme_minimal(base_size = 12) +
@@ -214,8 +220,13 @@ dengue_region <- plot_state_by_region(state_month_region, "Dengue")
 zika_region   <- plot_state_by_region(state_month_region, "Zika")
 chikv_region  <- plot_state_by_region(state_month_region, "Chikungunya")
 
+dengue_region
+zika_region
+chikv_region
+
+
 ggsave(
-  "figures/dengue_state_year_region_heatmap.png",
+  "figures/ndengue_state_year_region_heatmap.png",
   plot = dengue_region,
   width = 8,
   height = 10,
@@ -224,7 +235,7 @@ ggsave(
 )
 
 ggsave(
-  "figures/zika_state_year_region_heatmap.png",
+  "figures/nzika_state_year_region_heatmap.png",
   plot = zika_region,
   width = 8,
   height = 10,
@@ -233,13 +244,24 @@ ggsave(
 )
 
 ggsave(
-  "figures/chikv_state_year_region_heatmap.png",
+  "figures/nchikv_state_year_region_heatmap.png",
   plot = chikv_region,
   width = 8,
   height = 10,
   units = "in",
   dpi = 600
 )
+
+
+merged %>%
+  summarise(
+    dengue_last_nonNA = max(year_month[!is.na(dengueCases)]),
+    dengue_last_pos   = max(year_month[!is.na(dengueCases) & dengueCases > 0]),
+    zika_last_nonNA   = max(year_month[!is.na(zikaCases)]),
+    zika_last_pos     = max(year_month[!is.na(zikaCases) & zikaCases > 0]),
+    chikv_last_nonNA  = max(year_month[!is.na(chikvCases)]),
+    chikv_last_pos    = max(year_month[!is.na(chikvCases) & chikvCases > 0])
+  )
 
 
 # combined peak incidence order: rank states by their single highest incidence value
@@ -264,7 +286,11 @@ plot_state_by_region_ordered <- function(df, disease_name, state_order) {
       breaks = scales::trans_breaks("log10", function(x) 10^x),
       labels = scales::trans_format("log10", scales::math_format(10^.x))
     ) +
-    scale_x_date(date_labels = "%Y-%m", date_breaks = "6 months") +
+    scale_x_date(date_labels = "%Y-%m", 
+                 date_breaks = "6 months",
+                 limits = c(as.Date("2016-01-01"), 
+                            as.Date("2025-12-01")),
+                 expand = c(0, 0)) +
     labs(x = "Year-Month", y = "State", fill = "Incidence\n(log10)",
          title = paste(disease_name, "incidence by state, grouped by region")) +
     theme_minimal(base_size = 12) +
@@ -282,7 +308,7 @@ zika_region_order   <- plot_state_by_region_ordered(state_month_region, "Zika", 
 chikv_region_order  <- plot_state_by_region_ordered(state_month_region, "Chikungunya", incidence_state_order)
 
 ggsave(
-  "figures/dengue_ordered_state_year_region_heatmap.png",
+  "figures/ndengue_ordered_state_year_region_heatmap.png",
   plot = dengue_region_order,
   width = 8,
   height = 10,
@@ -291,7 +317,7 @@ ggsave(
 )
 
 ggsave(
-  "figures/zika_ordered_state_year_region_heatmap.png",
+  "figures/nzika_ordered_state_year_region_heatmap.png",
   plot = zika_region_order,
   width = 8,
   height = 10,
@@ -300,7 +326,7 @@ ggsave(
 )
 
 ggsave(
-  "figures/chikv_ordered_state_year_region_heatmap.png",
+  "figures/nchikv_ordered_state_year_region_heatmap.png",
   plot = chikv_region_order,
   width = 8,
   height = 10,
@@ -315,7 +341,8 @@ library(sf)
 
  br_states <- read_state(
    year = 2020,
-   simplified = T
+   simplified = T,
+   cache = FALSE
  )
 
 names(br_states)
@@ -393,7 +420,7 @@ for (disease_name in diseases) {
   
   ggsave(
     filename = paste0(
-      "figures/",
+      "figures/n",
       tolower(ifelse(disease_name == "Chikungunya", "chikv", disease_name)),
       "_geo.png"    ),
     plot = p,
@@ -507,7 +534,7 @@ chikv_cumulative <- plot_cumulative_state_map(
 )
 
 ggsave(
-  "figures/dengue_cumulative_state_map.png",
+  "figures/ndengue_cumulative_state_map.png",
   plot = dengue_cumulative,
   width = 8,
   height = 8,
@@ -516,7 +543,7 @@ ggsave(
 )
 
 ggsave(
-  "figures/zika_cumulative_state_map.png",
+  "figures/nzika_cumulative_state_map.png",
   plot = zika_cumulative,
   width = 8,
   height = 8,
@@ -525,7 +552,7 @@ ggsave(
 )
 
 ggsave(
-  "figures/chikv_cumulative_state_map.png",
+  "figures/nchikv_cumulative_state_map.png",
   plot = chikv_cumulative,
   width = 8,
   height = 8,
