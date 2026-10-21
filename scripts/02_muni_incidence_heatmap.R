@@ -1,12 +1,15 @@
 # incidence heatmap
 # goal: municipality level incidence heatmap (ungrouped), raw + log10 scale
 # input: "Brazil_arbovirus_monthly_data_2016_2025.csv"
+
+rm(list = ls())
+
 library(readr)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
 
-merged <- read_csv("data/Brazil_arbovirus_monthly_data_2016_2025.csv")
+merged <- read_csv("data/nBrazil_arbovirus_monthly_data_2016_2025.csv")
 
 mergedLong_muni <- merged %>%
   pivot_longer(
@@ -50,6 +53,8 @@ raw_plot <- ggplot(mergedLong_muni, aes(x = year_month, y = factor(muni), fill =
   labs(x = "Time", y = "Municipality", fill = "Incidence", title = "Municipality Incidence (linear scale)") + 
   base_theme 
 
+print(raw_plot)
+
 
 # log10 scale
 log_plot <-  ggplot(mergedLong_muni, aes(x = year_month, y = factor(muni), fill = incidence)) +
@@ -65,3 +70,23 @@ log_plot <-  ggplot(mergedLong_muni, aes(x = year_month, y = factor(muni), fill 
    scale_x_date(date_labels = "%Y-%m", date_breaks = "6 months") +
    labs(x = "Time", y = "Municipality", fill = "Incidence", title = "Municipality Incidence (log scale)") + 
    base_theme 
+print(log_plot)
+
+
+ggsave(
+  "figures/nmuni_incidence_heatmap_log.png",
+  plot = log_plot,
+  width = 8,
+  height = 10,
+  units = "in",
+  dpi = 600
+)
+
+ggsave(
+  "figures/nmuni_incidence_heatmap_raw.png",
+  plot = raw_plot,
+  width = 8,
+  height = 8,
+  units = "in",
+  dpi = 600
+)
