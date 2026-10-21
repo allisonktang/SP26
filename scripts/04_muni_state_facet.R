@@ -12,8 +12,8 @@ library(ggplot2)
 library(tidytext)
 library(scales)
 
-merged     <- read_csv("data/Brazil_arbovirus_monthly_data_2016_2025.csv")
-state_year <- read_csv("data/Brazil_arbovirus_state_yearly_2016_2025.csv")
+merged     <- read_csv("data/nBrazil_arbovirus_monthly_data_2016_2025.csv")
+state_year <- read_csv("data/nBrazil_arbovirus_state_yearly_2016_2025.csv")
 
 state_lookup <- c(
   "11" = "RO", "12" = "AC", "13" = "AM", "14" = "RR", "15" = "PA",
@@ -106,7 +106,7 @@ print(zika_plot)
 print(chikv_plot)
 
 ggsave(
-  "figures/chikv_muni_state_heatmap.png",
+  "figures/nchikv_muni_state_heatmap.png",
   plot = chikv_plot,
   width = 8,
   height = 10,
@@ -115,7 +115,7 @@ ggsave(
 )
 
 ggsave(
-  "figures/zika_muni_state_heatmap.png",
+  "figures/nzika_muni_state_heatmap.png",
   plot = zika_plot,
   width = 8,
   height = 10,
@@ -124,7 +124,7 @@ ggsave(
 )
 
 ggsave(
-  "figures/dengue_muni_state_heatmap.png",
+  "figures/ndengue_muni_state_heatmap.png",
   plot = dengue_plot,
   width = 8,
   height = 10,
@@ -175,7 +175,7 @@ chikv_plot_fixed  <- plot_muni_by_disease_fixed(muniLong, "Chikungunya", shared_
 print(dengue_plot_fixed)
 
 ggsave(
-  "figures/chikv_fixed_muni_state_heatmap.png",
+  "figures/nchikv_fixed_muni_state_heatmap.png",
   plot = chikv_plot_fixed,
   width = 8,
   height = 10,
@@ -184,7 +184,7 @@ ggsave(
 )
 
 ggsave(
-  "figures/zika_fixed_muni_state_heatmap.png",
+  "figures/nzika_fixed_muni_state_heatmap.png",
   plot = zika_plot_fixed,
   width = 8,
   height = 10,
@@ -193,7 +193,7 @@ ggsave(
 )
 
 ggsave(
-  "figures/dengue_fixed_muni_state_heatmap.png",
+  "figures/ndengue_fixed_muni_state_heatmap.png",
   plot = dengue_plot_fixed,
   width = 8,
   height = 10,
@@ -329,3 +329,229 @@ muniLong %>%
     q75 = quantile(incidence, 0.75),
     max = max(incidence)
   )
+
+###########################################
+#         plot geographic map             #
+###########################################
+library(geobr)
+library(sf)
+
+br_munis <- read_municipality(
+  year = 2020,
+  simplified = TRUE,
+  cache = FALSE
+)
+
+names(br_munis)
+
+br_munis <- br_munis %>%
+  mutate(
+    code_muni = substr(as.character(code_muni),1,6)
+  )
+
+brazil_border <- br_munis %>%
+  sf::st_union() %>%
+  sf::st_cast("MULTIPOLYGON") %>%
+  sf::st_cast("POLYGON") %>%
+  sf::st_exterior_ring()
+
+base_theme <- theme_classic() + 
+  theme(
+    panel.grid = element_blank(),
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.3),
+    axis.line = element_blank(),
+    strip.background = element_blank(),
+    axis.text.y = element_text(size = 6),
+    axis.ticks.y = element_blank(),
+    axis.text.x = element_text(angle = 90, hjust = 1),
+    plot.title = element_text(size = 16, hjust = 0.5, margin = margin(b=10))
+  )
+
+# create plotting function that facets by year (if you want to do individual year, add year_value to parameters, filter by year, remove facet wrap)
+plot_muni_map <- function(data, geography, disease_name) {
+  
+  map_data <- geography %>%
+    left_join(
+      data %>%
+        filter(
+          disease == disease_name),
+      by = c("code_muni" = "muni")
+    )
+  
+  ggplot(map_data) + 
+    geom_sf(
+      aes(fill = incidence),
+      color = NA
+    ) +
+  geom_sf(
+    data = brazil_border,
+    fill = NA,
+    color = "black",
+    linewidth = 0.1
+    ) +
+    scale_fill_gradient(
+      low = "#FCF0CE",
+      high = "#D4180A",
+      na.value = "white",
+      trans = "log",
+      breaks = trans_breaks("log10", function(x) 10^x),
+      labels = trans_format("log10", math_format(10^.x))
+    ) +
+    labs(
+      fill = "Incidence\nper 100k",
+      title = paste0(
+        disease_name,
+        " Incidence by Municipality (log scale)"
+      )
+    ) +
+    base_theme +
+    theme(
+      panel.border = element_blank(),
+      axis.text = element_blank(),
+      axis.ticks = element_blank(),
+      axis.title = element_blank()
+    ) +
+    coord_sf(datum = NA) +
+    facet_wrap(~year)
+}
+
+
+# create three graphs showing geographic heatmap throughout time
+diseases <- unique(muniLong$disease)
+
+for (disease_name in diseases) {
+  
+  p <- plot_muni_map(
+    muniLong,
+    br_munis,
+    disease_name
+  )
+  
+  ggsave(
+    filename = paste0(
+      "figures/n",
+      tolower(ifelse(disease_name == "Chikungunya", "chikv", disease_name)),
+      "_geo_muni.png"    ),
+    plot = p,
+    width = 12,
+    height = 8,
+    units = "in",
+    dpi = 600
+  )
+  
+  cat("Saved:", disease_name, "\n")
+}
+
+# cumulative incidence
+
+muni_cumulative <- muniLong %>%
+  group_by(muni, disease) %>%
+  summarise(
+    cumulative_incidence = sum(incidence, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+glimpse(muni_cumulative)
+
+plot_cumulative_muni_map <- function(data, geography, disease_name) {
+  
+  map_data <- geography %>%
+    left_join(
+      data %>%
+        filter(disease == disease_name),
+      by = c("code_muni" = "muni")
+    )
+  
+  ggplot(map_data) +
+    geom_sf(
+      aes(fill = cumulative_incidence),
+      color = NA
+    ) +
+    geom_sf(
+      data = brazil_border,
+      fill = NA,
+      color = "black",
+      linewidth = 0.2
+    ) +
+    scale_fill_gradient(
+      low = "#FCF0CE",
+      high = "#D4180A",
+      na.value = "white",
+      trans = "log10",
+      breaks = trans_breaks(
+        "log10",
+        function(x) 10^x
+      ),
+      labels = trans_format(
+        "log10",
+        math_format(10^.x)
+      )
+    ) +
+    
+    labs(
+      fill = "Cumulative incidence\nper 100k",
+      title = paste0(
+        disease_name,
+        " Cumulative Incidence by Municipality, 2016–2025"
+      )
+    ) +
+    
+    base_theme +
+    
+    theme(
+      panel.border = element_blank(),
+      axis.text = element_blank(),
+      axis.ticks = element_blank(),
+      axis.title = element_blank()
+    ) +
+    
+    coord_sf(datum = NA)
+}
+
+
+# create one map for each disease
+dengue_cumulative <- plot_cumulative_muni_map(
+  muni_cumulative,
+  br_munis,
+  "Dengue"
+)
+
+zika_cumulative <- plot_cumulative_muni_map(
+  muni_cumulative,
+  br_munis,
+  "Zika"
+)
+
+chikv_cumulative <- plot_cumulative_muni_map(
+  muni_cumulative,
+  br_munis,
+  "Chikungunya"
+)
+
+ggsave(
+  "figures/ndengue_cumulative_muni_map.png",
+  plot = dengue_cumulative,
+  width = 8,
+  height = 8,
+  units = "in",
+  dpi = 600
+)
+
+ggsave(
+  "figures/nzika_cumulative_muni_map.png",
+  plot = zika_cumulative,
+  width = 8,
+  height = 8,
+  units = "in",
+  dpi = 600
+)
+
+ggsave(
+  "figures/nchikv_cumulative_muni_map.png",
+  plot = chikv_cumulative,
+  width = 8,
+  height = 8,
+  units = "in",
+  dpi = 600
+)
+
