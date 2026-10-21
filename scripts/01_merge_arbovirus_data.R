@@ -3,9 +3,9 @@
 # Author: 
 # Date: 4/27/2026
 # Datasets: 
-#   - DENV:
-#   - ZIKA: 
-#   - CHIKV:
+#   - DENV:   (collected october 13, 2026)
+#   - ZIKA:   (collected october 13, 2026)
+#   - CHIKV:  (collected october 13, 2026)
 #   - pop: Pop_size_estimative_2010_2025_IBGE_collected_in_April_14_2026_clean.csv
 # Goal: Merge datasets and calculate incidence (yearly, monthly) for Brazilian municipalities
 # Notes:
@@ -25,21 +25,24 @@ library(ggplot2)
 # 1. Load datasets 
 ##################################################################################################
 
-# DENV from ()
-# Columns: muni, date, DENV_per_100k 
-dengue <- read_csv("data/DENV-serotypes_1996-2025_monthly_mun.csv") %>%
-  rename(muni = CD_MUN) %>%
-  filter(!is.na(muni)) %>%
+# DENGUE from https://dadosabertos.saude.gov.br
+# Municipality is determined primarily using COMUNINF. Source indicators used when COMUNINF != residence, or COMUNINF is blank
+#   - if COMUNINF exists and == residence,  muni = COMUNINF and source_indicator = autochthnonous_residence
+#   - if COMUNINF exists and != residence,  muni = COMUNINF and source_indicator = infection_recorded
+#   - if COMUNINF is blank,                 muni = ID_MN_RESI and source_indicator = residence_fallback 
+# Columns: TP_NOT,DT_NOTIFIC, SEM_NOT, NU_ANO, MUNI, CLASSI_FIN, CRITERIO, CS_SEXO, NU_IDADE_N, source_indicator, UF_CODE
+dengue <- read_csv("data/ncombined_dengue_2016_2025.csv") %>%
+  filter(between(NU_ANO, 2016, 2025)) %>%
+  filter(CLASSI_FIN %in% c(1, 10, 11, 12)) %>%
   mutate(
-    muni = substr(muni, 1, 6),
-    date = ymd(date),
+    muni= as.character(MUNI),
+    date = ymd(DT_NOTIFIC),
     year = year(date),
-    month = month(date),
-    dengueCases = DENV_total) %>%
-  filter(between(year, 2016, 2025))     # removes rows without data
-glimpse(dengue)
+    month = month(date)
+  ) %>%
+  filter(!is.na(muni), !is.na(year), !is.na(month))
+glimpse(dengue) # check
 colnames(dengue)
-
 
 # ZIKA from https://dadosabertos.saude.gov.br
 # Municipality is determined primarily using COMUNINF. Source indicators used when COMUNINF != residence, or COMUNINF is blank
@@ -48,95 +51,126 @@ colnames(dengue)
 #   - if COMUNINF is blank,                 muni = ID_MN_RESI and source_indicator = residence_fallback 
 # Columns: TP_NOT,DT_NOTIFIC, SEM_NOT, NU_ANO, MUNI, CLASSI_FIN, CRITERIO, CS_SEXO, NU_IDADE_N, source_indicator, UF_CODE
 
-zika <- read_csv("data/combined_zika_2016_2025.csv") %>%
+zika <- read_csv("data/ncombined_zika_2016_2025.csv") %>%
   filter(between(NU_ANO, 2016, 2025)) %>%
-  mutate(muni = sprintf("%06d", as.integer(MUNI))) %>%
-  filter(!is.na(muni)) %>%
+  filter(CLASSI_FIN %in% c(1)) %>%
   mutate(
+    muni= as.character(MUNI),
     date = ymd(DT_NOTIFIC),
     year = year(date),
     month = month(date)
   ) %>%
-  filter(!is.na(year) & !is.na(month))
+  filter(!is.na(muni), !is.na(year), !is.na(month))
 glimpse(zika) # check
 colnames(zika)
 
-# CHIKV from winson??
-chikv <- read_csv("data/bd_CHIKV_positive_2013_2025_english.csv") %>% 
-  filter(Auxiliary_Virus == "Chikungunya") %>%
-  filter (between(Collection_Year, 2016, 2025)) %>%
-  rename(muni = Municipality_Code) %>%
-  filter(!is.na(muni)) %>%
+# CHIKV from https://dadosabertos.saude.gov.br
+# Municipality is determined primarily using COMUNINF. Source indicators used when COMUNINF != residence, or COMUNINF is blank
+#   - if COMUNINF exists and == residence,  muni = COMUNINF and source_indicator = autochthnonous_residence
+#   - if COMUNINF exists and != residence,  muni = COMUNINF and source_indicator = infection_recorded
+#   - if COMUNINF is blank,                 muni = ID_MN_RESI and source_indicator = residence_fallback 
+# Columns: TP_NOT,DT_NOTIFIC, SEM_NOT, NU_ANO, MUNI, CLASSI_FIN, CRITERIO, CS_SEXO, NU_IDADE_N, source_indicator, UF_CODE
+
+chikv <- read_csv("data/ncombined_chikv_2016_2025.csv") %>%
+  filter(between(NU_ANO, 2016, 2025)) %>%
+  filter(CLASSI_FIN %in% c(1, 13)) %>%
   mutate(
-    date = lubridate::mdy(Collection_Date),
+    muni= as.character(MUNI),
+    date = ymd(DT_NOTIFIC),
     year = year(date),
     month = month(date)
-  )
-glimpse(chikv)
+  ) %>%
+  filter(!is.na(muni), !is.na(year), !is.na(month))
+glimpse(chikv) # check
 colnames(chikv)
+
+sum(is.na(dengue$date))
+sum(is.na(zika$date))
+sum(is.na(chikv$date))
+
+#check date range
+range(dengue$date)
+range(zika$date)
+range(chikv$date)
 
 
 # population
 pop <- read_csv("data/Pop_size_estimative_2010_2025_IBGE_collected_in_April_14_2026_clean.csv") %>% 
-  filter(Year >= 2016 & Year <= 2025) %>%
+  filter(between(Year, 2016, 2025)) %>%
   filter(code_muni != 110000) %>% # no population data for state department
-  select(code_muni, Year, Pop_estimated, Sigla) %>%
-    mutate(
-      muni = substr(code_muni, 1, 6),
-      year = Year,
-      pop_tot = as.numeric(Pop_estimated)
+  mutate(
+    Pop_estimated = trimws(Pop_estimated),
+    Pop_estimated = sub("\\s*\\([0-9]+\\)$", "", Pop_estimated),
+    Pop_estimated = gsub("\\.", "", Pop_estimated)
+  ) %>% # remove footnote-- sometimes formatted with a space, ranges from 1-19 
+  transmute(
+    muni = substr(as.numeric(code_muni), 1, 6),
+    year = Year,
+    pop_tot = as.numeric(Pop_estimated)
     )
 glimpse(pop)
+
+# check for any duplicate populations
+pop %>%
+  count(muni, year) %>%
+  filter(n > 1)
+
+# check for missing values
+pop %>%
+  filter(is.na(pop_tot) | pop_tot <= 0)
   
 ##################################################################################################
-# 2. Clean datasets to include 6 digit muni, year, month, number of cases/incidence
+# 2. Aggregate confirmed cases by muni, year, month 
 ##################################################################################################
 
 dengueClean <- dengue %>%
-  select(muni, year, month, dengueCases)
+  group_by(muni, year, month) %>%
+  summarise(
+    dengueCases = n(),
+    .groups = "drop"
+  )
 
 zikaClean <- zika %>% 
   group_by(muni, year, month) %>%
-  filter(!is.na(muni)) %>%
-  summarise(zikaCases = n(), .groups = "drop")
+  summarise(
+    zikaCases = n(), 
+    .groups = "drop"
+  )
 
 chikvClean <- chikv %>%
   group_by(muni, year, month) %>%
-  filter(!is.na(muni)) %>%
-  summarise(chikvCases = n(), .groups = "drop")
+  summarise(
+    chikvCases = n(), 
+    .groups = "drop"
+    )
 
+# check for duplicate muni-month cases
+dengueClean %>%
+  count(muni, year, month) %>%
+  filter(n > 1)
 
-# clean population dataset to use annual data for each month
-popClean <- pop %>%
-  select(muni, year, pop_tot) %>%
-  distinct() %>%                        # one row per muni-year
-  expand_grid(month = 1:12) %>%  # create month 1–12 for each muni-year
-  arrange(muni, year, month)
+zikaClean %>%
+  count(muni, year, month) %>%
+  filter(n > 1)
 
-# ensure all columns have same type 
-dengueClean <- dengueClean %>% 
-  mutate(muni = as.character(muni),
-        year = as.integer(year),
-        month = as.integer(month))
+chikvClean %>%
+  count(muni, year, month) %>%
+  filter(n > 1)
 
-zikaClean <- zikaClean %>%
-  mutate(muni = as.character(muni),
-         year = as.integer(year),
-         month = as.integer(month))
-
-chikvClean <- chikvClean %>%
-  mutate(muni = as.character(muni),
-         year = as.integer(year),
-         month = as.integer(month))
-
-popClean <- popClean %>%
-  mutate(muni = as.character(muni),
-         year = as.integer(year),
-         month = as.integer(month))
+# check range
+range(dengueClean$dengueCases)
+range(zikaClean$zikaCases)
+range(chikvClean$chikvCases)
 
 ##################################################################################################
 # 3. Merge datasets and calculate incidence
 ##################################################################################################
+# expand population dataset to use annual data for each month
+popClean <- pop %>%
+  distinct(muni, year, pop_tot) %>%                        # one row per muni-year
+  expand_grid(month = 1:12) %>%  # create month 1–12 for each muni-year
+  mutate(month = as.integer(month)) %>%
+  arrange(muni, year, month)
 
 # merge disease datasets to population 
 merged <- popClean %>%
@@ -145,6 +179,10 @@ merged <- popClean %>%
   left_join(chikvClean,  by = c("muni", "year", "month")) 
 glimpse(merged)
 
+merged %>%
+  filter(is.na(pop_tot) | pop_tot <= 0)
+
+# calculate incidence per 100k
 merged <- merged %>%
   mutate(
     dengueIncidence = dengueCases / pop_tot * 100000,
@@ -152,7 +190,10 @@ merged <- merged %>%
     chikvIncidence  = chikvCases / pop_tot * 100000
   ) %>%
   select(
-    muni, year, month, pop_tot, dengueCases, zikaCases, chikvCases, dengueIncidence, zikaIncidence, chikvIncidence)
+    muni, year, month, pop_tot, 
+    dengueCases, zikaCases, chikvCases, 
+    dengueIncidence, zikaIncidence, chikvIncidence
+    )
 
 # check: range excluding NA
 range(merged$dengueCases, na.rm = TRUE) 
@@ -163,6 +204,11 @@ range(merged$chikvCases, na.rm = TRUE)
 mean(is.na(merged$dengueCases)) 
 mean(is.na(merged$zikaCases))
 mean(is.na(merged$chikvCases))
+
+# check: duplicates?
+merged %>%
+  count(muni, year, month) %>%
+  filter(n > 1)
 
 merged <- merged %>%
   mutate(year_month = as.Date(sprintf("%d-%02d-01", year, month)))
@@ -188,7 +234,7 @@ merged %>%
   glimpse()
 
 
-write_csv(merged, "data/Brazil_arbovirus_monthly_data_2016_2025.csv")
+write_csv(merged, "data/nBrazil_arbovirus_monthly_data_2016_2025.csv")
 
 
 # count cases
@@ -298,41 +344,9 @@ ggplot(munMean, aes(x = year_month, y = incidence, color = disease, fill = disea
 natIncidence_log <- natIncidence %>%
   filter(incidence > 0)
 
-# PLOTS FOR NATIONAL INCIDENCE (NOT WORKING)
-ggplot(natIncidence_log, aes(x = year_month, y = incidence, color = disease, fill = disease)) + 
-  geom_ribbon(aes(ymin = 0, ymax = incidence), alpha = 0.2, color = NA) +
-  geom_line(alpha = 0.7) +
-  scale_color_manual(values = cols) +
-  scale_fill_manual(values = cols) +
-  scale_x_date(date_labels = "%Y-%m", date_breaks = "6 months") +
-  guides(fill = "none") +
-  labs(
-    x = "Year-Month",
-    y = "National Incidence per 100k",
-    color = "Disease"
-  ) +
-  theme_classic() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 
-# PLOT FOR NATIONAL INCIDENCE (log scale) (NOT WORKING)
-ggplot(natIncidence_log, aes(x = year_month, y = incidence, color = disease, fill = disease)) + 
-  geom_ribbon(aes(ymin = 0, ymax = incidence), alpha = 0.2, color = NA) +
-  geom_line(alpha = 0.7) +
-  scale_color_manual(values = cols) +
-  scale_fill_manual(values = cols) +
-  scale_x_date(date_labels = "%Y-%m", date_breaks = "6 months") +
-  scale_y_log10(oob = scales::squish_infinite) +
-  guides(fill = "none") +
-  labs(
-    x = "Year-Month",
-    y = "National Incidence per 100k (Log scale)",
-    color = "Disease"
-  ) +
-  theme_classic() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
-
-# HEATMAPS
+# HEATMAPS (non log)
 ggplot(mergedLong_muni,
        aes(x = year_month, y = factor(muni), fill = incidence)) +
   geom_tile(color = NA, linewidth = 0) +
@@ -357,7 +371,7 @@ ggplot(mergedLong_muni,
 # incidence heatmap
 # goal: municipality level incidence heatmap (ungrouped), raw + log10 scale
 # input: "Brazil_arbovirus_monthly_data_2016_2025.csv"
-ggplot(mergedLong_muni,
+muni_heatmap <- ggplot(mergedLong_muni,
        aes(x = year_month, y = factor(muni), fill = incidence)) +
   geom_tile(color = NA, linewidth = 0) +
   facet_wrap(~ disease, ncol = 1) +
@@ -378,4 +392,6 @@ ggplot(mergedLong_muni,
     strip.text = element_text(face = "plain"),
     axis.text.x = element_text(angle = 90, hjust = 1)
   )
+
+print(muni_heatmap)
 
