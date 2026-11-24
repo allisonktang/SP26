@@ -4,7 +4,7 @@
 # input: Brazil_arbovirus_monthly_data_2016_2025.csv
 # notes: state level incidence is calculated by (sum cases/ sum population), not an average of municipality incidence rates
 
-rm(list = ls())
+rm(list = ls()) 
 
 library(readr)
 library(dplyr)
@@ -12,7 +12,7 @@ library(tidyr)
 library(ggplot2)
 library(scales)
 
-merged <- read_csv("data/nBrazil_arbovirus_monthly_data_2016_2025.csv")
+merged <- read_csv("data/Brazil_arbovirus_monthly_data_2016_2025.csv")
 
 state_lookup <- c(
   "11" = "RO", "12" = "AC", "13" = "AM", "14" = "RR", "15" = "PA",
@@ -84,9 +84,9 @@ base_theme <- theme_classic() +
     panel.border = element_rect(color = "black", fill = NA, linewidth = 0.3),
     axis.line = element_blank(),
     strip.background = element_blank(),
-    axis.text.y = element_text(size = 6),
+    axis.text.y = element_text(size = 4),
     axis.ticks.y = element_blank(),
-    axis.text.x = element_text(angle = 90, hjust = 1),
+    axis.text.x = element_text(angle = 90, hjust = 1, size = 5),
     plot.title = element_text(size = 16, hjust = 0.5, margin = margin(b=10))
   )
 
@@ -125,12 +125,12 @@ state_month <- merged %>%
     chikvIncidence  = chikvCases  / pop_tot * 100000
   )
 
-write_csv(state_month, "data/nBrazil_arbovirus_state_monthly_2016_2025.csv")
-write_csv(state_year,  "data/nBrazil_arbovirus_state_yearly_2016_2025.csv")
+write_csv(state_month, "data/Brazil_arbovirus_state_monthly_2016_2025.csv")
+write_csv(state_year,  "data/Brazil_arbovirus_state_yearly_2016_2025.csv")
 
 # save as png, tiff, and pdf
 ggsave(
-  "figures/nstate_year_heatmap.png",
+  "figures/state_year_heatmap.png",
   plot = state_year_heatmap,
   width = 8,
   height = 10,
@@ -139,7 +139,7 @@ ggsave(
 )
 
 ggsave(
-  "figures/nstate_year_heatmap.tiff",
+  "figures/state_year_heatmap.tiff",
   plot = state_year_heatmap,
   width = 8,
   height = 10,
@@ -149,7 +149,7 @@ ggsave(
 )
 
 ggsave(
-  "figures/nstate_year_heatmap.pdf",
+  "figures/state_year_heatmap.pdf",
   plot = state_year_heatmap,
   width = 8,
   height = 10,
@@ -182,6 +182,11 @@ state_month_region <- state_month %>%
 #check
 state_month_region %>% filter(is.na(region)) %>% distinct(state) %>% nrow()
 
+
+# plotting function
+library(ggh4x)
+library(grid)
+
 plot_state_by_region <- function(df, disease_name) {
   d <- df %>% filter(disease == disease_name)
   
@@ -191,68 +196,83 @@ plot_state_by_region <- function(df, disease_name) {
     fill = incidence
   )) +
     geom_tile(color = NA) +
-    facet_wrap(~ region, ncol = 1, scales = "free_y", strip.position = "right") +
-    tidytext::scale_y_reordered() +
+    facet_grid(region ~ ., scales = "free_y", space = "free_y") +
+    tidytext::scale_y_reordered(expand = c(0,0)) +
     scale_fill_gradient(
       low = "#FCF0CE", high = "#D4180A", na.value = "white",
       trans = "log10",
       breaks = scales::trans_breaks("log10", function(x) 10^x),
       labels = scales::trans_format("log10", scales::math_format(10^.x))
     ) +
-    scale_x_date(date_labels = "%Y-%m", 
-                 date_breaks = "6 months",
+    scale_x_date(date_labels = "%Y", 
+                 date_breaks = "1 year",
                  limits = c(as.Date("2016-01-01"), 
                             as.Date("2025-12-01")),
                  expand = c(0, 0)) +
-    labs(x = "Year-Month", y = "State", fill = "Incidence\n(log10)",
-         title = paste(disease_name, "incidence by state, grouped by region")) +
-    theme_minimal(base_size = 12) +
+    labs(title = NULL, x = NULL, y = NULL, fill = "Incidence\n(log10)") +
+    theme_classic(base_size = 12) +
     theme(
-      axis.text.x = element_text(angle = 45, hjust = 1),
+      axis.text.x = element_text(size = 5),
+      axis.text.y = element_text(size = 4),
+      axis.ticks.x = element_line(linewidth = 0.2),
+      axis.ticks.y = element_blank(),
+      axis.ticks.length.x = unit(.4, "mm"),
+      axis.line = element_blank(),
       panel.grid = element_blank(),
-      strip.background = element_rect(fill = "grey90", color = NA),
-      strip.text.y.right = element_text(angle = 0),
-      plot.title = element_text(size = 16, hjust = 0.5, margin = margin(b = 10))
+      panel.border = element_rect(color = "black", fill = NA, linewidth = 0.3),
+      panel.spacing = unit(.2, "mm"),
+      strip.background = ggh4x::element_part_rect(
+        side = "trb", 
+        color = "black",
+        fill = NA,
+        linewidth = 0.3
+      ),
+      strip.text.y.right = element_text(angle = 0, 
+                                        size = 4, 
+                                        margin = margin(1, .2, 1, .2, unit = "mm")
+                                        ),
+      legend.title = element_text(size = 5),
+      legend.text = element_text(size = 4.5),
+      legend.spacing.y = unit(1, "mm"),
+      legend.margin = margin(0, 0, 0, 0),
+      legend.box.spacing = unit(1, "mm"),
+      plot.margin = margin(1, 1, 1, 1, unit = "mm")
+    ) +
+    guides(
+      fill = guide_colorbar(
+        barheight = unit(16, "mm"),
+        barwidth = unit(4, "mm"),
+        ticks = TRUE
+      )
     )
 }
 
 dengue_region <- plot_state_by_region(state_month_region, "Dengue")
-zika_region   <- plot_state_by_region(state_month_region, "Zika")
-chikv_region  <- plot_state_by_region(state_month_region, "Chikungunya")
-
 dengue_region
-zika_region
-chikv_region
+
+diseases <- unique(state_month_region$disease)
+
+for (disease_name in diseases) {
+  p <- plot_state_by_region(state_month_region, disease_name)
+  
+  ggsave(
+    filename = paste0(
+      "figures/",
+      tolower(ifelse(disease_name == "Chikungunya", "chikv", disease_name)),
+      "_state_year_region_heatmap.pdf"    ),
+    plot = p,
+    width = 77,
+    height = 49,
+    units = "mm",
+    dpi = 600,
+    bg = "transparent"
+  )
+  
+  cat("Saved:", disease_name, "\n")
+}
 
 
-ggsave(
-  "figures/ndengue_state_year_region_heatmap.png",
-  plot = dengue_region,
-  width = 8,
-  height = 10,
-  units = "in",
-  dpi = 600
-)
-
-ggsave(
-  "figures/nzika_state_year_region_heatmap.png",
-  plot = zika_region,
-  width = 8,
-  height = 10,
-  units = "in",
-  dpi = 600
-)
-
-ggsave(
-  "figures/nchikv_state_year_region_heatmap.png",
-  plot = chikv_region,
-  width = 8,
-  height = 10,
-  units = "in",
-  dpi = 600
-)
-
-
+# check end dates
 merged %>%
   summarise(
     dengue_last_nonNA = max(year_month[!is.na(dengueCases)]),
@@ -263,76 +283,6 @@ merged %>%
     chikv_last_pos    = max(year_month[!is.na(chikvCases) & chikvCases > 0])
   )
 
-
-# combined peak incidence order: rank states by their single highest incidence value
-# across ALL THREE diseases (not per-disease), so all plots share one consistent order
-incidence_state_order <- state_year %>%
-  group_by(state) %>%
-  summarise(peak_incidence = max(incidence, na.rm = TRUE), .groups = "drop") %>%
-  arrange(desc(peak_incidence)) %>%
-  pull(state)
-
-plot_state_by_region_ordered <- function(df, disease_name, state_order) {
-  d <- df %>% 
-    filter(disease == disease_name) %>%
-    mutate(state = factor(state, levels = state_order))
-  
-  ggplot(d, aes(x = year_month, y = state, fill = incidence)) +
-    geom_tile(color = NA) +
-    facet_wrap(~ region, ncol = 1, scales = "free_y", strip.position = "right") +
-    scale_fill_gradient(
-      low = "#FCF0CE", high = "#D4180A", na.value = "white",
-      trans = "log10",
-      breaks = scales::trans_breaks("log10", function(x) 10^x),
-      labels = scales::trans_format("log10", scales::math_format(10^.x))
-    ) +
-    scale_x_date(date_labels = "%Y-%m", 
-                 date_breaks = "6 months",
-                 limits = c(as.Date("2016-01-01"), 
-                            as.Date("2025-12-01")),
-                 expand = c(0, 0)) +
-    labs(x = "Year-Month", y = "State", fill = "Incidence\n(log10)",
-         title = paste(disease_name, "incidence by state, grouped by region")) +
-    theme_minimal(base_size = 12) +
-    theme(
-      axis.text.x = element_text(angle = 45, hjust = 1),
-      panel.grid = element_blank(),
-      strip.background = element_rect(fill = "grey90", color = NA),
-      strip.text.y.right = element_text(angle = 0),
-      plot.title = element_text(size = 16, hjust = 0.5, margin = margin(b = 10))
-    )
-}
-
-dengue_region_order <- plot_state_by_region_ordered(state_month_region, "Dengue", incidence_state_order)
-zika_region_order   <- plot_state_by_region_ordered(state_month_region, "Zika", incidence_state_order)
-chikv_region_order  <- plot_state_by_region_ordered(state_month_region, "Chikungunya", incidence_state_order)
-
-ggsave(
-  "figures/ndengue_ordered_state_year_region_heatmap.png",
-  plot = dengue_region_order,
-  width = 8,
-  height = 10,
-  units = "in",
-  dpi = 600
-)
-
-ggsave(
-  "figures/nzika_ordered_state_year_region_heatmap.png",
-  plot = zika_region_order,
-  width = 8,
-  height = 10,
-  units = "in",
-  dpi = 600
-)
-
-ggsave(
-  "figures/nchikv_ordered_state_year_region_heatmap.png",
-  plot = chikv_region_order,
-  width = 8,
-  height = 10,
-  units = "in",
-  dpi = 600
-)
 ###########################################
 #         plot geographic map             #
 ###########################################
@@ -348,9 +298,9 @@ library(sf)
 names(br_states)
 
 state_labels <- data.frame(
-  state = c("RN", "PB", "PE", "AL", "SE", "ES", "RJ", "SC"),
-  x = c(-34, -34, -34, -35, -36, -38.5, -40, -47),
-  y = c(-5, -7, -8.1, -10, -12, -20, -23, -28)
+  state = c("RN", "PB", "PE", "AL", "SE", "DF", "ES", "RJ", "SC"),
+  x     = c(-34,   -34,  -34,  -35,  -36,  -48,-38.5,  -40, -47),
+  y     = c(-5,     -7, -8.1,  -10,  -12,  -15, -20,   -23, -28)
 )
 
 # create plotting function that facets by year (if you want to do individual year, add year_value to parameters, filter by year, remove facet wrap)
@@ -389,11 +339,7 @@ plot_state_map <- function(data, geography, disease_name) {
       labels = trans_format("log10", math_format(10^.x))
     ) +
     labs(
-      fill = "Incidence\nper 100k",
-      title = paste0(
-        disease_name,
-        " Incidence by State (log scale)"
-      )
+      fill = "Incidence\nper 100k (log10)"
     ) +
     base_theme +
     theme(
@@ -406,6 +352,7 @@ plot_state_map <- function(data, geography, disease_name) {
     facet_wrap(~year)
 }
 
+plot_state_map(state_year, br_states, "Dengue")
 
 # create three graphs showing geographic heatmap throughout time
 diseases <- unique(state_year$disease)
@@ -420,14 +367,15 @@ for (disease_name in diseases) {
   
   ggsave(
     filename = paste0(
-      "figures/n",
+      "figures/",
       tolower(ifelse(disease_name == "Chikungunya", "chikv", disease_name)),
-      "_geo.png"    ),
+      "_geo.pdf"    ),
     plot = p,
-    width = 12,
-    height = 8,
-    units = "in",
-    dpi = 600
+    width = 77,
+    height = 49,
+    units = "mm",
+    dpi = 600,
+    bg = "transparent"
   )
   
   cat("Saved:", disease_name, "\n")
@@ -441,8 +389,6 @@ state_cumulative <- state_year %>%
     cumulative_incidence = sum(incidence, na.rm = TRUE),
     .groups = "drop"
   )
-
-glimpse(state_cumulative)
 
 plot_cumulative_state_map <- function(data, geography, disease_name) {
   
@@ -459,103 +405,85 @@ plot_cumulative_state_map <- function(data, geography, disease_name) {
       color = "black",
       linewidth = 0.1
     ) +
-    
     # state labels that fit
     geom_sf_text(
       data = map_data %>%
         filter(
           !abbrev_state %in%
-            c("RN", "PB", "PE", "AL", "SE", "ES", "RJ", "SC")
+            c("RN", "PB", "PE", "AL", "SE", "DF", "ES", "RJ", "SC")
         ),
       aes(label = abbrev_state),
-      size = 1.5
+      size = 1
     ) +
-    
     # manually positioned labels
     geom_text(
       data = state_labels,
       aes(x = x, y = y, label = state),
-      size = 1.5
+      size = 1
     ) +
     
     scale_fill_gradient(
-      low = "#FCF0CE",
-      high = "#D4180A",
-      na.value = "white",
+      low = "#FCF0CE", high = "#D4180A", na.value = "white",
       trans = "log10",
-      breaks = trans_breaks(
-        "log10",
-        function(x) 10^x
-      ),
-      labels = trans_format(
-        "log10",
-        math_format(10^.x)
-      )
+      breaks = trans_breaks("log10", function(x) 10^x),
+      labels = trans_format("log10", math_format(10^.x))
     ) +
     
     labs(
-      fill = "Cumulative incidence\nper 100k",
-      title = paste0(
-        disease_name,
-        " Cumulative Incidence by State, 2016–2025"
-      )
+      fill = "Cumulative incidence\nper 100k (log10)"
     ) +
-    
     base_theme +
-    
     theme(
       panel.border = element_blank(),
       axis.text = element_blank(),
       axis.ticks = element_blank(),
-      axis.title = element_blank()
+      axis.title = element_blank(),
+      legend.title = element_text(size = 5),
+      legend.text = element_text(size = 4.5),
+      legend.spacing.y = unit(1, "mm"),
+      legend.margin = margin(0, 0, 0, 0),
+      legend.box.spacing = unit(.5, "mm"),
+      plot.margin = margin(1, 1, 1, 1, unit = "mm")
     ) +
-    
-    coord_sf(datum = NA)
+    guides(
+      fill = guide_colorbar(
+        barheight = unit(16, "mm"),
+        barwidth = unit(4, "mm"),
+        ticks = TRUE
+      )
+      ) +
+    coord_sf(datum = NA, expand = FALSE)
 }
 
-
-# create one map for each disease
-dengue_cumulative <- plot_cumulative_state_map(
+plot_cumulative_state_map(
   state_cumulative,
   br_states,
   "Dengue"
 )
 
-zika_cumulative <- plot_cumulative_state_map(
-  state_cumulative,
-  br_states,
-  "Zika"
-)
+for (disease_name in diseases) {
+  
+  p <- plot_cumulative_state_map(
+    state_cumulative,
+    br_states,
+    disease_name
+  )
+  
+  ggsave(
+    filename = paste0(
+      "figures/",
+      tolower(ifelse(disease_name == "Chikungunya", "chikv", disease_name)),
+      "__cumulative_state_map.pdf"    ),
+    plot = p,
+    width = 77,
+    height = 49,
+    units = "mm",
+    dpi = 600,
+    bg = "transparent"
+  )
+  
+  cat("Saved:", disease_name, "\n")
+}
 
-chikv_cumulative <- plot_cumulative_state_map(
-  state_cumulative,
-  br_states,
-  "Chikungunya"
-)
 
-ggsave(
-  "figures/ndengue_cumulative_state_map.png",
-  plot = dengue_cumulative,
-  width = 8,
-  height = 8,
-  units = "in",
-  dpi = 600
-)
 
-ggsave(
-  "figures/nzika_cumulative_state_map.png",
-  plot = zika_cumulative,
-  width = 8,
-  height = 8,
-  units = "in",
-  dpi = 600
-)
-
-ggsave(
-  "figures/nchikv_cumulative_state_map.png",
-  plot = chikv_cumulative,
-  width = 8,
-  height = 8,
-  units = "in",
-  dpi = 600
-)
