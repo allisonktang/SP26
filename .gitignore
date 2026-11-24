@@ -12,4 +12,12 @@ figures/
 # Ignore the large datasets
 data/bd_CHIKV_positive_2013_2025_english.csv
 data/combined_all_climate_data_2016_2024(7).rds
+data/combined_dengue_2016_2025.csv
+data/combined_chikv_2016_2025.csv
+data/climate_daily_2025.csv
+data/combined_all_climate_data_2016_2025.rds
 data/dengue/
+data/zika/
+data/chikv/
+data/climate_2025_chunks/
+data/climate_2025_pages
