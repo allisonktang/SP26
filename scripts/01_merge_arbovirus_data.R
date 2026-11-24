@@ -31,7 +31,7 @@ library(ggplot2)
 #   - if COMUNINF exists and != residence,  muni = COMUNINF and source_indicator = infection_recorded
 #   - if COMUNINF is blank,                 muni = ID_MN_RESI and source_indicator = residence_fallback 
 # Columns: TP_NOT,DT_NOTIFIC, SEM_NOT, NU_ANO, MUNI, CLASSI_FIN, CRITERIO, CS_SEXO, NU_IDADE_N, source_indicator, UF_CODE
-dengue <- read_csv("data/ncombined_dengue_2016_2025.csv") %>%
+dengue <- read_csv("data/combined_dengue_2016_2025.csv") %>%
   filter(between(NU_ANO, 2016, 2025)) %>%
   filter(CLASSI_FIN %in% c(1, 10, 11, 12)) %>%
   mutate(
@@ -51,7 +51,7 @@ colnames(dengue)
 #   - if COMUNINF is blank,                 muni = ID_MN_RESI and source_indicator = residence_fallback 
 # Columns: TP_NOT,DT_NOTIFIC, SEM_NOT, NU_ANO, MUNI, CLASSI_FIN, CRITERIO, CS_SEXO, NU_IDADE_N, source_indicator, UF_CODE
 
-zika <- read_csv("data/ncombined_zika_2016_2025.csv") %>%
+zika <- read_csv("data/combined_zika_2016_2025.csv") %>%
   filter(between(NU_ANO, 2016, 2025)) %>%
   filter(CLASSI_FIN %in% c(1)) %>%
   mutate(
@@ -71,7 +71,7 @@ colnames(zika)
 #   - if COMUNINF is blank,                 muni = ID_MN_RESI and source_indicator = residence_fallback 
 # Columns: TP_NOT,DT_NOTIFIC, SEM_NOT, NU_ANO, MUNI, CLASSI_FIN, CRITERIO, CS_SEXO, NU_IDADE_N, source_indicator, UF_CODE
 
-chikv <- read_csv("data/ncombined_chikv_2016_2025.csv") %>%
+chikv <- read_csv("data/combined_chikv_2016_2025.csv") %>%
   filter(between(NU_ANO, 2016, 2025)) %>%
   filter(CLASSI_FIN %in% c(1, 13)) %>%
   mutate(
@@ -234,7 +234,7 @@ merged %>%
   glimpse()
 
 
-write_csv(merged, "data/nBrazil_arbovirus_monthly_data_2016_2025.csv")
+write_csv(merged, "data/Brazil_arbovirus_monthly_data_2016_2025.csv")
 
 
 # count cases
@@ -319,31 +319,6 @@ natIncidence <- merged %>%
                      chikvIncidence = "Chikungunya"
     )
   )
-
-cols = c("Dengue" = "#F8766D",
-             "Zika" = "#7CAE00",
-             "Chikungunya" = "#00BFC4")
-
-# PLOT MUNICIPALITY AVG INCIDENCE
-
-ggplot(munMean, aes(x = year_month, y = incidence, color = disease, fill = disease)) + 
-  geom_ribbon(aes(ymin = 0, ymax = incidence), alpha = 0.2, color = NA) +
-  geom_line(alpha = 0.7) +
-  scale_color_manual(values = cols) +
-  scale_fill_manual(values = cols) +
-  scale_x_date(date_labels = "%Y-%m", date_breaks = "6 months") +
-  guides(fill = "none") +
-  labs(
-    x = "Year-Month",
-    y = "Average Municipality Incidence per 100k",
-    color = "Disease"
-  ) +
-  theme_classic() +
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-natIncidence_log <- natIncidence %>%
-  filter(incidence > 0)
-
 
 
 # HEATMAPS (non log)
