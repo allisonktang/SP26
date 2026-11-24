@@ -12,8 +12,8 @@ library(ggplot2)
 library(tidytext)
 library(scales)
 
-merged     <- read_csv("data/nBrazil_arbovirus_monthly_data_2016_2025.csv")
-state_year <- read_csv("data/nBrazil_arbovirus_state_yearly_2016_2025.csv")
+merged     <- read_csv("data/Brazil_arbovirus_monthly_data_2016_2025.csv")
+state_year <- read_csv("data/Brazil_arbovirus_state_yearly_2016_2025.csv")
 
 state_lookup <- c(
   "11" = "RO", "12" = "AC", "13" = "AM", "14" = "RR", "15" = "PA",
@@ -106,7 +106,7 @@ print(zika_plot)
 print(chikv_plot)
 
 ggsave(
-  "figures/nchikv_muni_state_heatmap.png",
+  "figures/chikv_muni_state_heatmap.png",
   plot = chikv_plot,
   width = 8,
   height = 10,
@@ -115,7 +115,7 @@ ggsave(
 )
 
 ggsave(
-  "figures/nzika_muni_state_heatmap.png",
+  "figures/zika_muni_state_heatmap.png",
   plot = zika_plot,
   width = 8,
   height = 10,
@@ -124,7 +124,7 @@ ggsave(
 )
 
 ggsave(
-  "figures/ndengue_muni_state_heatmap.png",
+  "figures/dengue_muni_state_heatmap.png",
   plot = dengue_plot,
   width = 8,
   height = 10,
@@ -175,7 +175,7 @@ chikv_plot_fixed  <- plot_muni_by_disease_fixed(muniLong, "Chikungunya", shared_
 print(dengue_plot_fixed)
 
 ggsave(
-  "figures/nchikv_fixed_muni_state_heatmap.png",
+  "figures/chikv_fixed_muni_state_heatmap.png",
   plot = chikv_plot_fixed,
   width = 8,
   height = 10,
@@ -184,7 +184,7 @@ ggsave(
 )
 
 ggsave(
-  "figures/nzika_fixed_muni_state_heatmap.png",
+  "figures/zika_fixed_muni_state_heatmap.png",
   plot = zika_plot_fixed,
   width = 8,
   height = 10,
@@ -193,142 +193,13 @@ ggsave(
 )
 
 ggsave(
-  "figures/ndengue_fixed_muni_state_heatmap.png",
+  "figures/dengue_fixed_muni_state_heatmap.png",
   plot = dengue_plot_fixed,
   width = 8,
   height = 10,
   units = "in",
   dpi = 600
 )
-
-# check SC
-muniLong %>%
-  filter(
-    state == "SC",
-    disease == "Chikungunya"
-  ) %>%
-  summarise(
-    min_incidence = min(incidence, na.rm = TRUE),
-    median_incidence = median(incidence, na.rm = TRUE),
-    mean_incidence = mean(incidence, na.rm = TRUE),
-    max_incidence = max(incidence, na.rm = TRUE)
-  )
-muniLong %>%
-  filter(
-    state == "SC",
-    disease == "Chikungunya"
-  ) %>%
-  arrange(desc(incidence)) %>%
-  select(muni, year, incidence) %>%
-  head(20)
-
-muniLong %>%
-  filter(
-    disease == "Chikungunya",
-    incidence > 0
-  ) %>%
-  summarise(
-    min = min(incidence),
-    q25 = quantile(incidence, 0.25),
-    median = median(incidence),
-    q75 = quantile(incidence, 0.75),
-    max = max(incidence)
-  )
-muniLong %>%
-  filter(
-    disease == "Chikungunya",
-    state == "SC",
-    incidence > 0
-  ) %>%
-  summarise(
-    min = min(incidence),
-    q25 = quantile(incidence, 0.25),
-    median = median(incidence),
-    q75 = quantile(incidence, 0.75),
-    max = max(incidence)
-  )
-
-sc_plot <- muniLong %>%
-  filter(
-    state == "SC",
-    disease == "Chikungunya",
-    incidence > 0
-  ) %>%
-  ggplot(
-    aes(
-      x = factor(year),
-      y = reorder_within(muni, incidence, state),
-      fill = incidence
-    )
-  ) +
-  geom_tile() +
-  facet_wrap(~state, scales = "free_y") +
-  scale_y_reordered() +
-  scale_fill_gradient(
-    low = "#FCF0CE",
-    high = "#D4180A",
-    trans = "log"
-  ) + 
-  labs(x = "Year", y = "Municipality", fill = paste("Chikungunya", "\nincidence\nper 100k")) +
-  theme(
-    axis.text.x = element_text(angle = 90, hjust = 1),
-    axis.ticks.x = element_blank(),
-    axis.text.y = element_blank(),
-    axis.ticks.y = element_blank(),
-    panel.background = element_blank(),    
-    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.3),
-    axis.line = element_blank(),
-    strip.background = element_blank(),
-  )
-
-sc_plot
-
-ggsave(
-  "figures/sc_plot_test.png",
-  plot = sc_plot,
-  width = 8,
-  height = 8,
-  units = "in",
-  dpi = 600
-)
-
-
-# see global scale
-muniLong %>%
-  filter(
-    disease == "Chikungunya",
-    incidence > 0
-  ) %>%
-  summarise(
-    min = min(incidence, na.rm = TRUE),
-    q25 = quantile(incidence, 0.25, na.rm = TRUE),
-    median = median(incidence, na.rm = TRUE),
-    q75 = quantile(incidence, 0.75, na.rm = TRUE),
-    max = max(incidence, na.rm = TRUE)
-  )
-
-muniLong %>%
-  filter(
-    disease == "Chikungunya",
-    incidence > 0
-  ) %>%
-  arrange(desc(incidence)) %>%
-  select(muni, state, year, incidence) %>%
-  head(10)
-
-muniLong %>%
-  filter(
-    state == "MG",
-    disease == "Chikungunya",
-    incidence > 0
-  ) %>%
-  summarise(
-    min = min(incidence),
-    q25 = quantile(incidence, 0.25),
-    median = median(incidence),
-    q75 = quantile(incidence, 0.75),
-    max = max(incidence)
-  )
 
 ###########################################
 #         plot geographic map             #
@@ -429,7 +300,7 @@ for (disease_name in diseases) {
   
   ggsave(
     filename = paste0(
-      "figures/n",
+      "figures/",
       tolower(ifelse(disease_name == "Chikungunya", "chikv", disease_name)),
       "_geo_muni.png"    ),
     plot = p,
@@ -529,7 +400,7 @@ chikv_cumulative <- plot_cumulative_muni_map(
 )
 
 ggsave(
-  "figures/ndengue_cumulative_muni_map.png",
+  "figures/dengue_cumulative_muni_map.png",
   plot = dengue_cumulative,
   width = 8,
   height = 8,
@@ -538,7 +409,7 @@ ggsave(
 )
 
 ggsave(
-  "figures/nzika_cumulative_muni_map.png",
+  "figures/zika_cumulative_muni_map.png",
   plot = zika_cumulative,
   width = 8,
   height = 8,
@@ -547,7 +418,7 @@ ggsave(
 )
 
 ggsave(
-  "figures/nchikv_cumulative_muni_map.png",
+  "figures/chikv_cumulative_muni_map.png",
   plot = chikv_cumulative,
   width = 8,
   height = 8,
