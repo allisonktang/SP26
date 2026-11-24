@@ -9,7 +9,7 @@ library(dplyr)
 library(tidyr)
 library(ggplot2)
 
-merged <- read_csv("data/nBrazil_arbovirus_monthly_data_2016_2025.csv")
+merged <- read_csv("data/Brazil_arbovirus_monthly_data_2016_2025.csv")
 
 mergedLong_muni <- merged %>%
   pivot_longer(
@@ -50,7 +50,10 @@ raw_plot <- ggplot(mergedLong_muni, aes(x = year_month, y = factor(muni), fill =
     high = "#D4180A",
     na.value = "white") +
   scale_x_date(date_labels = "%Y-%m", date_breaks = "6 months") +
-  labs(x = "Time", y = "Municipality", fill = "Incidence", title = "Municipality Incidence (linear scale)") + 
+  labs(x = "Time", 
+       y = "Municipality", 
+       fill = "Incidence", 
+       title = "Municipality Incidence (linear scale)") + 
   base_theme 
 
 print(raw_plot)
@@ -67,8 +70,12 @@ log_plot <-  ggplot(mergedLong_muni, aes(x = year_month, y = factor(muni), fill 
      trans = "log10",
      breaks = scales::trans_breaks("log10", function(x) 10^x),
      labels = scales::trans_format("log10", scales::math_format(10^.x))) +
-   scale_x_date(date_labels = "%Y-%m", date_breaks = "6 months") +
-   labs(x = "Time", y = "Municipality", fill = "Incidence", title = "Municipality Incidence (log scale)") + 
+   scale_x_date(date_labels = "%Y-%m", 
+                date_breaks = "6 months") +
+   labs(x = "Time", 
+        y = "Municipality", 
+        fill = "Incidence", 
+        title = "Municipality Incidence (log scale)") + 
    base_theme 
 print(log_plot)
 
